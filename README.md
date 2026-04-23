@@ -1,72 +1,318 @@
-# CCPL (C Compiled Programming language)
+# CCPL — C Compiled Programming Language
 
-CCPL is a language designed to be as easy as bash and to have the power of C.
-CCPL is a transpiled language. The language is a parser to C and it compiles the C code after that to a binary.
-Currently this works on linux only, but I'm planning to add cross-compilation.
+CCPL is a high-level scripting language that compiles down to C. It's designed to feel as simple as Bash while giving you the raw power of C under the hood. Write clean, readable code — CCPL transpiles it to C and compiles it to a native binary automatically.
 
-This language has it's own package manage and library manager called Barite.
-The compiler can also call Barite automatically with the -a flag.
+> **Platform:** Linux (cross-compilation planned)
 
-We have also included CCPL GUI. It is a gui for running anc compiling the programs. Works on linux using gtk3.
+---
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Compiler Usage](#compiler-usage)
+- [REPL](#repl)
+- [Barite Package Manager](#barite-package-manager)
+- [Packages](#packages)
+- [GUI](#gui)
+- [Making Your Own Packages](#making-your-own-packages)
+- [Building from Source](#building-from-source)
+
+---
+
+## Installation
+
+### One-line installer (recommended)
+
+No need to clone anything. Just run this in your terminal:
+
+```bash
+bash <(curl -s https://raw.githubusercontent.com/QKing-Official/CCPL/main/installer.sh)
+```
+
+The installer uses a dialog-based UI to let you choose components:
+
+- **ccpl** — the compiler
+- **barite** — the package manager
+- **offline** — local package cache (installs packages for use without internet)
+
+Binaries are installed to `/opt/ccpl/` and symlinked into `/usr/local/bin/`, so `ccpl` and `barite-cli` are available everywhere on your system after install.
+
+---
+
+## Quick Start
+
+Create a file called `hello.ccpl`:
+
+```
+packages = {
+    io
+}
+
+print "Hello, world!"
+```
+
+Compile and run:
+
+```bash
+ccpl hello.ccpl
+./out
+```
+
+---
+
+## Compiler Usage
+
+```
+ccpl [options] <file.ccpl>
+```
+
+| Flag | Description |
+|------|-------------|
+| `-o <name>` | Set output binary name (default: `out`) |
+| `-a`, `--auto` | Auto-install missing packages via Barite |
+| `-r`, `--repl` | Start interactive REPL mode |
+| `-k`, `--keep-c` | Keep the generated `.c` file |
+| `--quiet` | Suppress success output |
+
+**Examples:**
+
+```bash
+ccpl program.ccpl                  # compile to ./out
+ccpl program.ccpl -o myapp         # compile to ./myapp
+ccpl program.ccpl -a               # auto-install missing packages
+ccpl program.ccpl -o myapp -k      # keep the generated C file
+```
+
+---
 
 ## REPL
 
-I have made a REPL for the transpiled language, It works by slowly building the program and executing it line by line.
-Use it with `ccpl-bin --repl`
-That will open the REPL session that clears on exit.
+CCPL includes an interactive REPL that builds up your program line by line and executes it incrementally.
 
-### build the ./ccpl-bin aka the compiler itself
-gcc ccpl/main.c ccpl/lexer.c ccpl/parser.c -o ccpl-bin
+```bash
+ccpl --repl
+```
 
-### compile a program:
-./ccpl-bin program.ccpl
+**REPL commands:**
 
--a for auto install dependecies from barite and -o name to set output file.
-also supports -r / --repl for interactive mode.
-use the -k or --keep-c flags to keep the C files generated from the .ccpl program.
+| Command | Description |
+|---------|-------------|
+| `:help` | Show available commands |
+| `:clear` | Reset REPL state |
+| `:quit` / `exit` | Exit the REPL |
 
-Start interactive REPL:
-./ccpl-bin --repl
+The REPL distinguishes between persistent statements (variable assignments, function definitions) and transient ones (`print`, shell captures) — only transient lines are re-evaluated on each run rather than accumulated.
 
-After it you can run the program using ./out or ./programname
+---
 
-### Build Barite, the package manager
-gcc barite/barite.c -o barite-cli
+## Barite Package Manager
 
-add the -a flag to auto install dependecies when compiling your program (cloud first, local fallback).
+Barite is the package manager for CCPL. It fetches and installs standard library packages so the compiler can find them.
 
-### Install barite packages
+### Cloud vs Local packages
 
-Normal installation, defaults to cloud
-./barite-cli install math
-./barite-cli install io
+**Cloud packages** are downloaded from the [BariteStd repository](https://github.com/QKing-Official/BariteStd) over the internet. This is the default and gives you the latest published versions of all official packages.
 
-Cloud installation, defaults to cloud
-./barite-cli install cloud math
-./barite-cli install cloud io
+**Local packages** are installed from the `local-packages/` folder bundled with CCPL. They work completely offline and are useful when you have no internet access, are developing your own packages, or selected the **offline** option during installation. The local package cache lives at `/opt/ccpl/local-packages/` after a global install.
 
-Local package install (for development)
-./barite-cli install local math
-./barite-cli install local io
+### Which command to use
 
-### Gui deps
+| Situation | Command |
+|-----------|---------|
+| Globally installed via the one-line installer | `barite-cli install math` |
+| Cloned the repo and running locally | `./barite-cli install math` |
+| Globally installed, no internet | `barite-cli install local math` |
+| Cloned the repo, no internet | `./barite-cli install local math` |
+
+### Installing Packages
+
+```bash
+# Cloud install (default) — downloads from the internet
+barite-cli install math
+barite-cli install io shell
+
+# Explicitly cloud
+barite-cli install cloud math
+
+# Local install — uses the bundled offline package cache
+barite-cli install local math
+barite-cli install local io shell
+```
+
+### Managing Packages
+
+```bash
+barite-cli list                    # list installed packages
+barite-cli remove math             # remove a package
+barite-cli info installed math     # show info for an installed package
+barite-cli info local math         # show info for a local/bundled package
+```
+
+### Auto-install via Compiler
+
+Pass `-a` to the compiler to have it call Barite automatically when a required package is missing. It tries cloud first, then falls back to local packages:
+
+```bash
+ccpl program.ccpl -a
+```
+
+---
+
+## Packages
+
+Packages are declared at the top of your `.ccpl` file in a `packages` block:
+
+```
+packages = {
+    io
+    math
+    shell
+}
+```
+
+| Package | Description |
+|---------|-------------|
+| `io` | `print`, string variables, string concatenation, `len()` |
+| `math` | Arithmetic, variables, `for`/`while` loops, arrays |
+| `shell` | Run shell commands, capture output with `$()` |
+| `str` | String utilities: `trim`, `upper`, `lower`, `contains`, `index_of`, etc. |
+| `rand` | Random numbers: `rand.int()`, `rand.float()`, `rand.seed()` |
+| `dt` | Date/time: `dt.now_iso()`, `dt.format_unix()` |
+| `crypto` | Cryptographic utilities |
+
+Package function calls use dot notation and map directly to C symbols:
+
+```
+math.add(a, b)    →    ccpl_math_add(a, b)
+io.print(x)       →    ccpl_io_print_int(x)  (type-dispatched)
+shell.capture(cmd) →   ccpl_shell(cmd)
+```
+
+---
+
+## GUI
+
+CCPL includes a GTK3-based GUI for compiling and running programs without the terminal.
+
+### Install GTK3 dependencies
+
+```bash
 sudo apt install libgtk-3-dev
+```
 
-### Compile gui
+### Build the GUI
+
+```bash
 cd CCPLGUI
-gcc ccpl_gui.c icon.h -o ccpl_gui \
-`pkg-config --cflags --libs gtk+-3.0`
+gcc ccpl_gui.c icon.h -o ccpl_gui `pkg-config --cflags --libs gtk+-3.0`
+```
 
-## Making packages
+---
 
-Check out the custom package located in local-packages folder.
-Also please refer to the guide below
+## Making Your Own Packages
 
-Custom package runtime logic
-- Put implementation code in: `local-packages/<pkg>/src/runtime.c`
-- Install it with barite so it is copied to: `std/<pkg>/src/runtime.c`
-- Namespaced CCPL calls map to C symbols with this convention:
-	- `mypkg.doThing(a, b)` -> `ccpl_mypkg_doThing(a, b)`
-- The compiler auto-injects every installed package runtime file from the `packages` block.
-- This lets users ship custom libs without changing compiler source.
+Custom packages follow a simple convention that lets you ship libraries without modifying the compiler.
+
+### Directory Structure
+
+```
+local-packages/
+└── mypkg/
+    ├── package.barite       # package metadata
+    └── src/
+        └── runtime.c        # implementation
+```
+
+### package.barite format
+
+```
+name: mypkg
+version: 1.0
+description: My custom package
+```
+
+### runtime.c conventions
+
+All functions must be namespaced as `ccpl_<pkgname>_<funcname>`:
+
+```c
+// mypkg.doThing(a, b)  →  ccpl_mypkg_doThing(a, b)
+double ccpl_mypkg_doThing(double a, double b) {
+    return a + b;
+}
+```
+
+The compiler automatically injects every installed package's `runtime.c` into the generated C file when that package appears in the `packages` block.
+
+### Install and use your package
+
+```bash
+barite-cli install local mypkg
+```
+
+```
+packages = {
+    mypkg
+}
+
+x = mypkg.doThing(3, 4)
+print x
+```
+
+---
+
+## Building from Source
+
+If you'd rather build manually from a clone of the repo instead of using the one-line installer:
+
+```bash
+git clone https://github.com/QKing-Official/CCPL.git
+cd CCPL
+```
+
+### Build the compiler
+
+```bash
+gcc ccpl/main.c ccpl/lexer.c ccpl/parser.c -o ccpl-bin
+```
+
+### Build Barite
+
+```bash
+gcc barite/barite.c -o barite-cli
+```
+
+### Run without installing globally
+
+When running from the cloned repo directory, prefix commands with `./`:
+
+```bash
+./barite-cli install local math io shell
+./ccpl-bin program.ccpl
+```
+
+### Install globally
+
+To install system-wide so you can use `ccpl` and `barite-cli` from anywhere:
+
+```bash
+sudo mkdir -p /opt/ccpl/std
+sudo chown -R $USER:$USER /opt/ccpl
+sudo mv ccpl-bin /opt/ccpl/ccpl
+sudo ln -sf /opt/ccpl/ccpl /usr/local/bin/ccpl
+sudo mv barite-cli /usr/local/bin/barite-cli
+```
+
+After a global install, drop the `./` prefix — use `ccpl` and `barite-cli` directly:
+
+```bash
+barite-cli install math io shell
+ccpl program.ccpl
+```
+
+---
+
+## License
+
+See [LICENSE](LICENSE) for details.
