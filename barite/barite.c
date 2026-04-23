@@ -4,8 +4,9 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#define CLOUD_REPO_URL "https://github.com/QKing-Official/BariteStd.git"
-#define CLOUD_CACHE_DIR "/tmp/barite-std-cache"
+#define CLOUD_REPO_URL   "https://github.com/QKing-Official/BariteStd.git"
+#define CLOUD_CACHE_DIR  "/tmp/barite-std-cache"
+#define GLOBAL_INSTALL_DIR "/opt/ccpl"
 
 /* ─────────────────────────────────────────────
    HELPERS
@@ -47,6 +48,33 @@ static int read_field(const char *path, const char *field, char *out, int outsz)
     return 0;
 }
 
+/* resolve the std/ output dir: use BARITE_STD_DIR env var if set,
+   else fall back to global install dir if it exists, else use local ./std */
+static void resolve_std_dir(char *out, int outsz) {
+    const char *env = getenv("BARITE_STD_DIR");
+    if (env && env[0]) {
+        strncpy(out, env, outsz - 1);
+        out[outsz - 1] = '\0';
+        return;
+    }
+    char global_std[512];
+    snprintf(global_std, sizeof(global_std), "%s/std", GLOBAL_INSTALL_DIR);
+    if (dir_exists(GLOBAL_INSTALL_DIR)) {
+        strncpy(out, global_std, outsz - 1);
+        out[outsz - 1] = '\0';
+        return;
+    }
+    strncpy(out, "std", outsz - 1);
+    out[outsz - 1] = '\0';
+}
+
+/* resolve local-packages dir: check ./local-packages first, then global */
+static void resolve_local_pkg_dir(const char *pkg, char *out, int outsz) {
+    snprintf(out, outsz, "local-packages/%s", pkg);
+    if (dir_exists(out)) return;
+    snprintf(out, outsz, "%s/local-packages/%s", GLOBAL_INSTALL_DIR, pkg);
+}
+
 /* ─────────────────────────────────────────────
    COMMANDS
 ───────────────────────────────────────────── */
@@ -60,11 +88,15 @@ int barite_install(const char *source, const char *pkg_raw) {
 
     char src_path[512];
     char dst_path[512];
+    char std_dir[512];
     char cmd[2048];
 
+    resolve_std_dir(std_dir, sizeof(std_dir));
+
     if (strcmp(source, "local") == 0) {
-        snprintf(src_path, sizeof(src_path), "local-packages/%s", pkg);
-        snprintf(dst_path, sizeof(dst_path), "std/%s", pkg);
+        resolve_local_pkg_dir(pkg, src_path, sizeof(src_path));
+        snprintf(dst_path, sizeof(dst_path), "%s/%s", std_dir, pkg);
+
     } else if (strcmp(source, "cloud") == 0) {
         snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", CLOUD_CACHE_DIR);
         if (system(cmd) != 0) {
@@ -92,7 +124,8 @@ int barite_install(const char *source, const char *pkg_raw) {
             snprintf(src_path, sizeof(src_path), "%s/std/%s", CLOUD_CACHE_DIR, pkg);
         }
 
-        snprintf(dst_path, sizeof(dst_path), "std/%s", pkg);
+        snprintf(dst_path, sizeof(dst_path), "%s/%s", std_dir, pkg);
+
     } else {
         fprintf(stderr, "barite: unknown source '%s' (available: local, cloud)\n", source);
         return 1;
@@ -138,8 +171,10 @@ int barite_remove(const char *pkg_raw) {
     pkg[sizeof(pkg) - 1] = '\0';
     strip_version(pkg);
 
+    char std_dir[512];
     char dst_path[512];
-    snprintf(dst_path, sizeof(dst_path), "std/%s", pkg);
+    resolve_std_dir(std_dir, sizeof(std_dir));
+    snprintf(dst_path, sizeof(dst_path), "%s/%s", std_dir, pkg);
 
     if (!dir_exists(dst_path)) {
         fprintf(stderr, "barite: package '%s' is not installed\n", pkg);
@@ -154,10 +189,16 @@ int barite_remove(const char *pkg_raw) {
 }
 
 void barite_list(void) {
-    /* list everything in std/ that has a package.barite */
+    char std_dir[512];
+    resolve_std_dir(std_dir, sizeof(std_dir));
+
     printf("Installed packages:\n");
 
-    FILE *pipe = popen("find std -maxdepth 1 -mindepth 1 -type d 2>/dev/null", "r");
+    char find_cmd[600];
+    snprintf(find_cmd, sizeof(find_cmd),
+        "find \"%s\" -maxdepth 1 -mindepth 1 -type d 2>/dev/null", std_dir);
+
+    FILE *pipe = popen(find_cmd, "r");
     if (!pipe) {
         printf("  (none)\n");
         return;
@@ -202,18 +243,23 @@ void barite_info(const char *source, const char *pkg_raw) {
     strip_version(pkg);
 
     char src_path[512];
-    if (strcmp(source, "local") == 0)
-        snprintf(src_path, sizeof(src_path), "local-packages/%s", pkg);
-    else
-        snprintf(src_path, sizeof(src_path), "std/%s", pkg);
+    char std_dir[512];
+    resolve_std_dir(std_dir, sizeof(std_dir));
 
-    char meta[600];
-    snprintf(meta, sizeof(meta), "%s/package.barite", src_path);
+    if (strcmp(source, "local") == 0) {
+        resolve_local_pkg_dir(pkg, src_path, sizeof(src_path));
+    } else {
+        /* "installed" or anything else: look in std dir */
+        snprintf(src_path, sizeof(src_path), "%s/%s", std_dir, pkg);
+    }
 
     if (!dir_exists(src_path)) {
         fprintf(stderr, "barite: package '%s' not found\n", pkg);
         return;
     }
+
+    char meta[600];
+    snprintf(meta, sizeof(meta), "%s/package.barite", src_path);
 
     char fields[][32] = { "name", "version", "description", "provides", "requires" };
     printf("Package info: %s\n", pkg);
@@ -238,7 +284,7 @@ static void usage(void) {
         "  barite install local <pkg>   install a local package\n"
         "  barite remove <pkg>          remove an installed package\n"
         "  barite list                  list installed packages\n"
-        "  barite info local <pkg>      show package info\n"
+        "  barite info local <pkg>      show local package info\n"
         "  barite info installed <pkg>  show info for installed package\n"
         "\n"
         "Examples:\n"
@@ -249,6 +295,9 @@ static void usage(void) {
         "  barite install local shell\n"
         "  barite list\n"
         "  barite remove math\n"
+        "\n"
+        "Environment:\n"
+        "  BARITE_STD_DIR   override the directory where packages are installed\n"
     );
 }
 

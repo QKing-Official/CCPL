@@ -114,9 +114,27 @@ static const char *detect_barite_cmd(void) {
     return NULL;
 }
 
+static const char *get_std_dir(void) {
+    static char std_dir[512] = {0};
+    if (std_dir[0]) return std_dir;
+
+    const char *env = getenv("BARITE_STD_DIR");
+    if (env && env[0]) {
+        strncpy(std_dir, env, sizeof(std_dir) - 1);
+        return std_dir;
+    }
+    struct stat st;
+    if (stat("/opt/ccpl", &st) == 0 && S_ISDIR(st.st_mode)) {
+        strncpy(std_dir, "/opt/ccpl/std", sizeof(std_dir) - 1);
+        return std_dir;
+    }
+    strncpy(std_dir, "std", sizeof(std_dir) - 1);
+    return std_dir;
+}
+
 static int pkg_on_disk(const char *pkg) {
     char path[512];
-    snprintf(path, sizeof(path), "std/%s", pkg);
+    snprintf(path, sizeof(path), "%s/%s", get_std_dir(), pkg);
     struct stat st;
     return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
@@ -124,7 +142,7 @@ static int pkg_on_disk(const char *pkg) {
 static int pkg_runtime_on_disk(const char *pkg) {
     char path[512];
     struct stat st;
-    snprintf(path, sizeof(path), "std/%s/src/runtime.c", pkg);
+    snprintf(path, sizeof(path), "%s/%s/src/runtime.c", get_std_dir(), pkg);
     return stat(path, &st) == 0 && S_ISREG(st.st_mode);
 }
 
@@ -134,12 +152,10 @@ static void emit_runtime_file(FILE *out, const char *path) {
         fprintf(stderr, "error: missing package runtime '%s'\n", path);
         exit(1);
     }
-
     char buf[4096];
     size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), rf)) > 0) {
+    while ((n = fread(buf, 1, sizeof(buf), rf)) > 0)
         fwrite(buf, 1, n, out);
-    }
     fclose(rf);
     fprintf(out, "\n");
 }
@@ -147,10 +163,8 @@ static void emit_runtime_file(FILE *out, const char *path) {
 static void emit_imported_package_runtimes(FILE *out) {
     char path[512];
     for (int k = 0; k < pkg_count; k++) {
-        if (!pkg_runtime_on_disk(imported[k])) {
-            continue;
-        }
-        snprintf(path, sizeof(path), "std/%s/src/runtime.c", imported[k]);
+        if (!pkg_runtime_on_disk(imported[k])) continue;
+        snprintf(path, sizeof(path), "%s/%s/src/runtime.c", get_std_dir(), imported[k]);
         emit_runtime_file(out, path);
     }
 }
