@@ -1,7 +1,0 @@
-# io package: print and strings
-# example:
-#   name = "world"
-#   print name
-packages = { io }
-msg = "hello from io"
-print msg
