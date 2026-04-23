@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 // Token stream
 static Token *T;
@@ -93,6 +94,25 @@ static VarType parse_expr(FILE *out);
 // Package block
 static int packages_done  = 0;
 static int g_auto_install = 0;
+static char g_barite_cmd[64] = {0};
+
+static const char *detect_barite_cmd(void) {
+    if (g_barite_cmd[0]) return g_barite_cmd;
+
+    if (access("./barite-cli", X_OK) == 0) {
+        strncpy(g_barite_cmd, "./barite-cli", sizeof(g_barite_cmd) - 1);
+        return g_barite_cmd;
+    }
+    if (system("command -v barite-cli >/dev/null 2>&1") == 0) {
+        strncpy(g_barite_cmd, "barite-cli", sizeof(g_barite_cmd) - 1);
+        return g_barite_cmd;
+    }
+    if (system("command -v barite >/dev/null 2>&1") == 0) {
+        strncpy(g_barite_cmd, "barite", sizeof(g_barite_cmd) - 1);
+        return g_barite_cmd;
+    }
+    return NULL;
+}
 
 static int pkg_on_disk(const char *pkg) {
     char path[512];
@@ -148,11 +168,21 @@ static void parse_packages(void) {
 
             if (!packages_done) {
                 if (!pkg_on_disk(pkg)) {
+                    const char *barite_cmd = detect_barite_cmd();
                     if (g_auto_install) {
-                        char cmd_cloud[256];
-                        char cmd_local[256];
-                        snprintf(cmd_cloud, sizeof(cmd_cloud), "./barite-cli install %s", pkg);
-                        snprintf(cmd_local, sizeof(cmd_local), "./barite-cli install local %s", pkg);
+                        if (!barite_cmd) {
+                            fprintf(stderr,
+                                "error: package '%s' is missing and barite was not found in PATH\n"
+                                "  install barite-cli or barite, then run:\n"
+                                "  barite-cli install %s\n",
+                                pkg, pkg);
+                            exit(1);
+                        }
+
+                        char cmd_cloud[512];
+                        char cmd_local[512];
+                        snprintf(cmd_cloud, sizeof(cmd_cloud), "%s install %s", barite_cmd, pkg);
+                        snprintf(cmd_local, sizeof(cmd_local), "%s install local %s", barite_cmd, pkg);
 
                         int rc = system(cmd_cloud);
                         if (rc != 0 || !pkg_on_disk(pkg)) {
@@ -162,18 +192,19 @@ static void parse_packages(void) {
                         if (rc != 0 || !pkg_on_disk(pkg)) {
                             fprintf(stderr,
                                 "error: package '%s' could not be installed\n"
-                                "  tried: ./barite-cli install %s\n"
-                                "  then : ./barite-cli install local %s\n",
-                                pkg, pkg);
+                                "  tried: %s install %s\n"
+                                "  then : %s install local %s\n",
+                                pkg, barite_cmd, pkg, barite_cmd, pkg);
                             exit(1);
                         }
                     } else {
+                        const char *shown_cmd = barite_cmd ? barite_cmd : "barite-cli";
                         fprintf(stderr,
                             "error: package '%s' is not installed\n"
-                            "  run: ./barite-cli install %s\n"
-                            "  or : ./barite-cli install local %s\n"
+                            "  run: %s install %s\n"
+                            "  or : %s install local %s\n"
                             "  or recompile with --auto / -a to install automatically\n",
-                            pkg, pkg, pkg);
+                            pkg, shown_cmd, pkg, shown_cmd, pkg);
                         exit(1);
                     }
                 }
