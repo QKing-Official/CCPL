@@ -8,9 +8,7 @@
 #define CLOUD_CACHE_DIR  "/tmp/barite-std-cache"
 #define GLOBAL_INSTALL_DIR "/opt/ccpl"
 
-/* ─────────────────────────────────────────────
-   HELPERS
-───────────────────────────────────────────── */
+// Helpers
 
 /* strip optional =version suffix from package name */
 static void strip_version(char *pkg) {
@@ -75,9 +73,7 @@ static void resolve_local_pkg_dir(const char *pkg, char *out, int outsz) {
     snprintf(out, outsz, "%s/local-packages/%s", GLOBAL_INSTALL_DIR, pkg);
 }
 
-/* ─────────────────────────────────────────────
-   COMMANDS
-───────────────────────────────────────────── */
+// install
 
 int barite_install(const char *source, const char *pkg_raw) {
 
@@ -270,9 +266,7 @@ void barite_info(const char *source, const char *pkg_raw) {
     }
 }
 
-/* ─────────────────────────────────────────────
-   USAGE
-───────────────────────────────────────────── */
+// Usage
 
 static void usage(void) {
     printf(
@@ -301,9 +295,7 @@ static void usage(void) {
     );
 }
 
-/* ─────────────────────────────────────────────
-   MAIN
-───────────────────────────────────────────── */
+// Main
 
 int main(int argc, char **argv) {
 
