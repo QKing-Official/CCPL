@@ -149,21 +149,31 @@ static void parse_packages(void) {
             if (!packages_done) {
                 if (!pkg_on_disk(pkg)) {
                     if (g_auto_install) {
-                        char cmd[256];
-                        snprintf(cmd, sizeof(cmd), "./barite-cli install local %s", pkg);
-                        int rc = system(cmd);
+                        char cmd_cloud[256];
+                        char cmd_local[256];
+                        snprintf(cmd_cloud, sizeof(cmd_cloud), "./barite-cli install %s", pkg);
+                        snprintf(cmd_local, sizeof(cmd_local), "./barite-cli install local %s", pkg);
+
+                        int rc = system(cmd_cloud);
+                        if (rc != 0 || !pkg_on_disk(pkg)) {
+                            rc = system(cmd_local);
+                        }
+
                         if (rc != 0 || !pkg_on_disk(pkg)) {
                             fprintf(stderr,
                                 "error: package '%s' could not be installed\n"
-                                "  run: ./barite-cli install local %s\n", pkg, pkg);
+                                "  tried: ./barite-cli install %s\n"
+                                "  then : ./barite-cli install local %s\n",
+                                pkg, pkg);
                             exit(1);
                         }
                     } else {
                         fprintf(stderr,
                             "error: package '%s' is not installed\n"
-                            "  run: ./barite-cli install local %s\n"
+                            "  run: ./barite-cli install %s\n"
+                            "  or : ./barite-cli install local %s\n"
                             "  or recompile with --auto / -a to install automatically\n",
-                            pkg, pkg);
+                            pkg, pkg, pkg);
                         exit(1);
                     }
                 }

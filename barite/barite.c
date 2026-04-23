@@ -4,6 +4,9 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#define CLOUD_REPO_URL "https://github.com/QKing-Official/BariteStd.git"
+#define CLOUD_CACHE_DIR "/tmp/barite-std-cache"
+
 /* ─────────────────────────────────────────────
    HELPERS
 ───────────────────────────────────────────── */
@@ -57,12 +60,41 @@ int barite_install(const char *source, const char *pkg_raw) {
 
     char src_path[512];
     char dst_path[512];
+    char cmd[2048];
 
     if (strcmp(source, "local") == 0) {
         snprintf(src_path, sizeof(src_path), "local-packages/%s", pkg);
         snprintf(dst_path, sizeof(dst_path), "std/%s", pkg);
+    } else if (strcmp(source, "cloud") == 0) {
+        snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", CLOUD_CACHE_DIR);
+        if (system(cmd) != 0) {
+            fprintf(stderr, "barite: failed to clear cloud cache directory\n");
+            return 1;
+        }
+
+        snprintf(
+            cmd,
+            sizeof(cmd),
+            "git clone --depth 1 \"%s\" \"%s\" >/dev/null 2>&1",
+            CLOUD_REPO_URL,
+            CLOUD_CACHE_DIR
+        );
+        if (system(cmd) != 0) {
+            fprintf(stderr,
+                "barite: failed to fetch cloud packages from %s\n"
+                "  check internet connection and git availability\n",
+                CLOUD_REPO_URL);
+            return 1;
+        }
+
+        snprintf(src_path, sizeof(src_path), "%s/%s", CLOUD_CACHE_DIR, pkg);
+        if (!dir_exists(src_path)) {
+            snprintf(src_path, sizeof(src_path), "%s/std/%s", CLOUD_CACHE_DIR, pkg);
+        }
+
+        snprintf(dst_path, sizeof(dst_path), "std/%s", pkg);
     } else {
-        fprintf(stderr, "barite: unknown source '%s' (available: local)\n", source);
+        fprintf(stderr, "barite: unknown source '%s' (available: local, cloud)\n", source);
         return 1;
     }
 
@@ -72,7 +104,6 @@ int barite_install(const char *source, const char *pkg_raw) {
     }
 
     /* create destination and copy */
-    char cmd[1024];
     snprintf(cmd, sizeof(cmd), "mkdir -p \"%s\"", dst_path);
     system(cmd);
 
@@ -87,10 +118,15 @@ int barite_install(const char *source, const char *pkg_raw) {
     read_field(meta, "version",     version,     sizeof(version));
     read_field(meta, "description", description, sizeof(description));
 
-    printf("Installing local package: %s", pkg);
+    printf("Installing %s package: %s", source, pkg);
     if (strcmp(version, "?") != 0) printf(" (v%s)", version);
     if (description[0])            printf(" — %s", description);
     printf("\n");
+
+    if (strcmp(source, "cloud") == 0) {
+        snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", CLOUD_CACHE_DIR);
+        (void)system(cmd);
+    }
 
     return 0;
 }
@@ -197,6 +233,8 @@ static void usage(void) {
         "barite — CCPL package manager\n"
         "\n"
         "Usage:\n"
+        "  barite install <pkg>         install a cloud package (default source)\n"
+        "  barite install cloud <pkg>   install a cloud package\n"
         "  barite install local <pkg>   install a local package\n"
         "  barite remove <pkg>          remove an installed package\n"
         "  barite list                  list installed packages\n"
@@ -204,6 +242,8 @@ static void usage(void) {
         "  barite info installed <pkg>  show info for installed package\n"
         "\n"
         "Examples:\n"
+        "  barite install math\n"
+        "  barite install cloud io\n"
         "  barite install local math\n"
         "  barite install local io\n"
         "  barite install local shell\n"
@@ -225,15 +265,27 @@ int main(int argc, char **argv) {
 
     const char *cmd = argv[1];
 
-    /* install local <pkg> [pkg2 ...] */
+    /* install [cloud|local] <pkg> [pkg2 ...] */
     if (strcmp(cmd, "install") == 0) {
-        if (argc < 4) {
-            fprintf(stderr, "usage: barite install local <package>\n");
+        if (argc < 3) {
+            fprintf(stderr, "usage: barite install [cloud|local] <package>\n");
             return 1;
         }
-        const char *source = argv[2];
+        const char *source = "cloud";
+        int first_pkg = 2;
+
+        if (strcmp(argv[2], "local") == 0 || strcmp(argv[2], "cloud") == 0) {
+            source = argv[2];
+            first_pkg = 3;
+        }
+
+        if (first_pkg >= argc) {
+            fprintf(stderr, "usage: barite install [cloud|local] <package>\n");
+            return 1;
+        }
+
         int rc = 0;
-        for (int i = 3; i < argc; i++)
+        for (int i = first_pkg; i < argc; i++)
             rc |= barite_install(source, argv[i]);
         return rc;
     }

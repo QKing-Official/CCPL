@@ -41,11 +41,12 @@ static void usage(void) {
         "  -o <name>       output binary name (default: out)\n"
         "  --auto, -a      automatically install missing packages via barite\n"
         "  --repl, -r      start interactive REPL mode\n"
+        "  --keep-c, -k    keep generated C file (<output>.c)\n"
         "  --quiet         suppress success output\n"
     );
 }
 
-static int compile_file_to_binary(const char *input_file, const char *output_name, int auto_install, int quiet) {
+static int compile_file_to_binary(const char *input_file, const char *output_name, int auto_install, int quiet, int keep_c) {
     FILE *f = fopen(input_file, "r");
     if (!f) {
         fprintf(stderr, "error: cannot open '%s'\n", input_file);
@@ -91,6 +92,10 @@ static int compile_file_to_binary(const char *input_file, const char *output_nam
     if (rc != 0) {
         fprintf(stderr, "error: C compilation failed\n");
         return 1;
+    }
+
+    if (!keep_c) {
+        remove(c_file);
     }
 
     if (!quiet) {
@@ -249,7 +254,10 @@ int main(int argc, char **argv) {
     int         auto_install = 0;
     int         repl_mode = 0;
     int         quiet = 0;
+    int         keep_c = 0;
 
+    // The arguments and cli flags
+    // the strcmp thing is the shorted version of the thing before
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--auto") == 0 || strcmp(argv[i], "-a") == 0) {
             auto_install = 1;
@@ -257,6 +265,8 @@ int main(int argc, char **argv) {
             repl_mode = 1;
         } else if (strcmp(argv[i], "--quiet") == 0) {
             quiet = 1;
+        } else if (strcmp(argv[i], "--keep-c") == 0 || strcmp(argv[i], "-k") == 0) {
+            keep_c = 1;
         } else if (strcmp(argv[i], "-o") == 0) {
             if (i + 1 >= argc) {
                 fprintf(stderr, "error: -o requires an argument\n");
@@ -293,5 +303,5 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    return compile_file_to_binary(input_file, output_name, auto_install, quiet);
+    return compile_file_to_binary(input_file, output_name, auto_install, quiet, keep_c);
 }

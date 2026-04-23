@@ -19,31 +19,36 @@ That will open the REPL session that clears on exit.
 ### build the ./ccpl-bin aka the compiler itself
 gcc ccpl/main.c ccpl/lexer.c ccpl/parser.c -o ccpl-bin
 
-### run a program:
+### compile a program:
 ./ccpl-bin program.ccpl
+
+-a for auto install dependecies from barite and -o name to set output file.
+also supports -r / --repl for interactive mode.
+use the -k or --keep-c flags to keep the C files generated from the .ccpl program.
 
 Start interactive REPL:
 ./ccpl-bin --repl
 
+After it you can run the program using ./out or ./programname
+
 ### Build Barite, the package manager
 gcc barite/barite.c -o barite-cli
 
-add the -a flag to auto install dependecies when compiling your program.
+add the -a flag to auto install dependecies when compiling your program (cloud first, local fallback).
 
 ### Install barite packages
+
+Normal installation, defaults to cloud
+./barite-cli install math
+./barite-cli install io
+
+Cloud installation, defaults to cloud
+./barite-cli install cloud math
+./barite-cli install cloud io
+
+Local package install (for development)
 ./barite-cli install local math
 ./barite-cli install local io
-
-Custom package runtime logic
-- Put implementation code in: `local-packages/<pkg>/src/runtime.c`
-- Install it with barite so it is copied to: `std/<pkg>/src/runtime.c`
-- Namespaced CCPL calls map to C symbols with this convention:
-	- `mypkg.doThing(a, b)` -> `ccpl_mypkg_doThing(a, b)`
-- The compiler auto-injects every installed package runtime file from the `packages` block.
-- This lets users ship custom libs without changing compiler source.
-
--a for auto install and -o name to set output file
-also supports -r / --repl for interactive mode
 
 ### Gui deps
 sudo apt install libgtk-3-dev
@@ -52,3 +57,16 @@ sudo apt install libgtk-3-dev
 cd CCPLGUI
 gcc ccpl_gui.c icon.h -o ccpl_gui \
 `pkg-config --cflags --libs gtk+-3.0`
+
+## Making packages
+
+Check out the custom package located in local-packages folder.
+Also please refer to the guide below
+
+Custom package runtime logic
+- Put implementation code in: `local-packages/<pkg>/src/runtime.c`
+- Install it with barite so it is copied to: `std/<pkg>/src/runtime.c`
+- Namespaced CCPL calls map to C symbols with this convention:
+	- `mypkg.doThing(a, b)` -> `ccpl_mypkg_doThing(a, b)`
+- The compiler auto-injects every installed package runtime file from the `packages` block.
+- This lets users ship custom libs without changing compiler source.
