@@ -1,0 +1,4 @@
+name: crypto
+version: 1.0
+description: lightweight crypto/hash helpers
+provides: crypto.fnv1a64, crypto.crc32, crypto.rot13

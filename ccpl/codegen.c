@@ -1,6 +1,7 @@
 #include "codegen.h"
 #include <stdio.h>
 
+// Just throw it in the AST
 void gen(AST *n, FILE *out) {
 
     if (!n) return;

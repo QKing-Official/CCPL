@@ -1,4 +1,4 @@
 name: math
 version: 2.0
 description: arithmetic, variables, for/while loops
-provides: variable_assignment, arithmetic, for, while
+provides: math.add, math.sub, math.mul, math.div, math.mod, math.pow

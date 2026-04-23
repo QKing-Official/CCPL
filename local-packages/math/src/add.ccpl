@@ -1,10 +1,26 @@
-# math package: arithmetic and variables
-# example:
-#   x = 5
-#   y = x + 3
-#   print y
+# math package library logic
 packages = { math }
-x = 10
-y = 20
-z = x + y
-print z
+
+def add(a, b) {
+	return math.add(a, b)
+}
+
+def sub(a, b) {
+	return math.sub(a, b)
+}
+
+def mul(a, b) {
+	return math.mul(a, b)
+}
+
+def div(a, b) {
+	return math.div(a, b)
+}
+
+def mod(a, b) {
+	return math.mod(a, b)
+}
+
+def pow2(a, b) {
+	return math.pow(a, b)
+}

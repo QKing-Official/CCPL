@@ -1,9 +1,10 @@
-# shell package: run system commands
-# fire-and-forget:
-#   $(echo hello)
-# capture output:
-#   result = $(ls)
-#   print result
+# shell package library logic
 packages = { shell, io }
-out = $(echo "shell works")
-print out
+
+def capture(cmd) {
+	return shell.capture(cmd)
+}
+
+def exec(cmd) {
+	return shell.exec(cmd)
+}

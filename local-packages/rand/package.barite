@@ -1,0 +1,4 @@
+name: rand
+version: 1.0
+description: random helpers
+provides: rand.seed, rand.int, rand.float, rand.choice_idx

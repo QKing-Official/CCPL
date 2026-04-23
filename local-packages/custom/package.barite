@@ -1,0 +1,4 @@
+name: custom
+version: 1.0
+description: custom user library example
+provides: custom.inc, custom.square, custom.cube, custom.avg, custom.factorial

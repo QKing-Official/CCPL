@@ -1,0 +1,4 @@
+name: str
+version: 1.0
+description: string utilities
+provides: str.contains, str.starts_with, str.ends_with, str.index_of, str.to_int, str.to_float, str.trim, str.lower, str.upper

@@ -1,0 +1,4 @@
+name: cnum
+version: 1.0
+description: C-style numeric helpers
+provides: cnum.abs, cnum.min, cnum.max, cnum.clamp, cnum.floor, cnum.ceil, cnum.sqrt, cnum.round, cnum.sign, cnum.is_even, cnum.gcd, cnum.lcm

@@ -1,6 +1,9 @@
 #ifndef AST_H
 #define AST_H
 
+// The AST 
+// Abstract syntax tree
+
 typedef enum {
     AST_LET,
     AST_PRINT,

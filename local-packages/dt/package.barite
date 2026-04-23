@@ -1,0 +1,4 @@
+name: dt
+version: 1.0
+description: date/time formatting helpers
+provides: dt.unix, dt.now_ms, dt.now_iso, dt.format_unix

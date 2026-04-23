@@ -2,13 +2,13 @@
 #define LEXER_H
 
 typedef enum {
-    /* literals */
+    // literals
     T_INT,
     T_FLOAT,
     T_STRING,
     T_IDENT,
 
-    /* operators */
+    // operators
     T_EQ,
     T_EQEQ,
     T_NEQ,
@@ -19,10 +19,10 @@ typedef enum {
     T_PLUS,
     T_MINUS,
     T_STAR,
-    T_STARSTAR,       /* ** (power) */
+    T_STARSTAR,       // ** (power)
     T_SLASH,
-    T_PERCENT,        /* % (modulo) */
-    T_CARET,          /* ^ (power alt) */
+    T_PERCENT,        // % (modulo)
+    T_CARET,          // ^ (power alt)
     T_PLUSPLUS,
     T_MINUSMINUS,
     T_SEMICOLON,
@@ -30,15 +30,16 @@ typedef enum {
     T_RPAREN,
     T_LBRACE,
     T_RBRACE,
-    T_LBRACKET,       /* [ */
-    T_RBRACKET,       /* ] */
+    T_LBRACKET,       // [
+    T_RBRACKET,       // ]
+    T_DOT,            // .
     T_COMMA,
-    T_BANG,           /* ! */
-    T_AND,            /* && */
-    T_OR,             /* || */
-    T_DOLLAR_PAREN,   /* $( */
+    T_BANG,           // !
+    T_AND,            // &&
+    T_OR,             // ||
+    T_DOLLAR_PAREN,   // $(
 
-    /* keywords */
+    // Keywords
     T_IF,
     T_ELSE,
     T_FOR,

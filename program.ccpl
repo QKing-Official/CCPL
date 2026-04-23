@@ -2,47 +2,106 @@
 packages = {
     math,
     io,
-    shell
+    shell,
+    custom,
+    cnum,
+    bit,
+    time,
+    str,
+    rand,
+    dt,
+    crypto
 }
 
-# types test
+io.print("=== CORE ===")
 x = 5
 y = 3.14
 name = "ccpl"
-print x
-print y
-print name
+io.print(x)
+io.print(y)
+io.print(name)
 
-# arithmetic test
-z = x + 2
-print z
+io.print("=== MATH ===")
+io.print(math.add(10, 2))
+io.print(math.sub(10, 2))
+io.print(math.mul(10, 2))
+io.print(math.div(10, 4))
+io.print(math.mod(17, 5))
+io.print(math.pow(2, 10))
 
-# if/else tests
-if x > 3 {
-    print x
-} else {
-    print y
-}
+io.print("=== CUSTOM ===")
+io.print(custom.inc(41))
+io.print(custom.square(6))
+io.print(custom.cube(3))
+io.print(custom.avg(10, 20))
+io.print(custom.factorial(6))
 
-# while loop tests
-i = 0
-while i < 3 {
-    print i
-    i = i + 1
-}
+io.print("=== CNUM ===")
+io.print(cnum.abs(-13))
+io.print(cnum.min(10, 3))
+io.print(cnum.max(10, 3))
+io.print(cnum.clamp(42, 0, 20))
+io.print(cnum.floor(9.8))
+io.print(cnum.ceil(9.1))
+io.print(cnum.sqrt(81))
+io.print(cnum.round(9.6))
+io.print(cnum.sign(-10))
+io.print(cnum.sign(0))
+io.print(cnum.sign(10))
+io.print(cnum.is_even(12))
+io.print(cnum.gcd(48, 18))
+io.print(cnum.lcm(12, 18))
 
-# for loop test
-for j = 0; j < 4; j++ {
-    print j
-}
+io.print("=== BIT ===")
+io.print(bit.and(6, 3))
+io.print(bit.or(6, 3))
+io.print(bit.xor(6, 3))
+io.print(bit.shl(3, 2))
+io.print(bit.shr(16, 2))
+io.print(bit.not(1))
+io.print(bit.set(8, 0))
+io.print(bit.clear(15, 1))
+io.print(bit.toggle(10, 1))
+io.print(bit.has(10, 3))
+io.print(bit.popcount(29))
 
-# functions test to ensure functions work
-def square(n) {
-    return n * n
-}
-result = square(6)
-print result
+io.print("=== TIME ===")
+t0 = time.monotonic_ms()
+time.sleep_ms(120)
+t1 = time.monotonic_ms()
+io.print(time.unix())
+io.print(time.now_ms())
+io.print(t1 - t0)
 
-# shell
-cwd = $(pwd)
-print cwd
+io.print("=== STR ===")
+s = "   Hello CCPL   "
+io.print(str.trim(s))
+io.print(str.lower("AbC-123"))
+io.print(str.upper("AbC-123"))
+io.print(str.contains("hello world", "world"))
+io.print(str.starts_with("foobar", "foo"))
+io.print(str.ends_with("foobar", "bar"))
+io.print(str.index_of("hello", "ll"))
+io.print(str.to_int("12345"))
+io.print(str.to_float("3.1415"))
+
+io.print("=== RAND ===")
+io.print(rand.int(1, 10))
+io.print(rand.float())
+io.print(rand.choice_idx(5))
+
+io.print("=== DT ===")
+io.print(dt.unix())
+io.print(dt.now_ms())
+io.print(dt.now_iso())
+io.print(dt.format_unix(dt.unix()))
+
+io.print("=== CRYPTO ===")
+io.print(crypto.fnv1a64("hello"))
+io.print(crypto.crc32("hello"))
+io.print(crypto.rot13("HelloWorld"))
+
+io.print("=== SHELL ===")
+cwd = shell.capture("pwd")
+io.print(cwd)
+shell.exec("echo runtime package test ok")

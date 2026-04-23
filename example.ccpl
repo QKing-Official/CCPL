@@ -5,169 +5,33 @@ packages = {
     shell
 }
 
-# Basics and types
-print "=== BASICS ==="
+io.print("=== PACKAGE EXAMPLE ===")
 
-x = 5
-y = 3.14
-name = "ccpl"
-print x
-print y
-print name
+# math namespace calls
+x = math.add(10, 5)
+y = math.sub(20, 3)
+z = math.mul(x, y)
+q = math.div(z, 5)
+r = math.mod(23, 5)
+p = math.pow(2, 8)
 
-# arithmetic
-print "=== ARITHMETIC ==="
+io.print(x)
+io.print(y)
+io.print(z)
+io.print(q)
+io.print(r)
+io.print(p)
 
-a = 10 + 3
-print a
+# io namespace calls
+msg = "hello from io package"
+io.print(msg)
+io.print(io.len(msg))
 
-b = 10 - 3
-print b
+# shell namespace calls
+cwd = shell.capture("pwd")
+io.print(cwd)
+shell.exec("echo shell.exec works")
 
-c = 10 * 3
-print c
-
-d = 10 / 4
-print d
-
-e = 10 % 3
-print e
-
-p = 2 ** 10
-print p
-
-neg = -42
-print neg
-
-# Booleans
-print "=== BOOLEANS ==="
-
-print true
-print false
-print 1 && 1
-print 1 && 0
-print 0 || 1
-print 0 || 0
-print !0
-print !1
-
-# Comparisons and conditionals
-print "=== CONDITIONALS ==="
-
-val = 7
-
-if val == 7 {
-    print "val is 7"
-}
-
-if val > 10 {
-    print "big"
-} else if val > 5 {
-    print "medium"
-} else {
-    print "small"
-}
-
-if val > 5 && val < 10 {
-    print "between 5 and 10"
-}
-
-if val < 0 || val > 100 {
-    print "out of range"
-} else {
-    print "in range"
-}
-
-# While
-
-print "=== WHILE ==="
-
-i = 0
-while i < 5 {
-    print i
-    i = i + 1
-}
-
-# FOR LOOP + POST-INCREMENT / DECREMENT
-
-print "=== FOR ==="
-
-for j = 0; j < 5; j++ {
-    print j
-}
-
-k = 5
-while k > 0 {
-    print k
-    k--
-}
-
-# Functions
-
-print "=== FUNCTIONS ==="
-
-def square(n) {
-    return n * n
-}
-
-def cube(n) {
-    return n * n * n
-}
-
-def add(a, b) {
-    return a + b
-}
-
-def factorial(n) {
-    if n <= 1 {
-        return 1
-    }
-    return n * factorial(n - 1)
-}
-
-print square(6)
-print cube(3)
-print add(10, 7)
-print factorial(6)
-
-# Arrays
-
-print "=== ARRAYS ==="
-
-nums = [10, 20, 30, 40, 50]
-print nums[0]
-print nums[4]
-
-nums[2] = 99
-print nums[2]
-
-floats = [1.1, 2.2, 3.3]
-print floats[1]
-
-# loop over array
-for idx = 0; idx < 5; idx++ {
-    print nums[idx]
-}
-
-# Strings and len
-
-print "=== STRINGS ==="
-
-s = "hello"
-print s
-print len(s)
-
-lang = "ccpl"
-print lang
-print len(lang)
-
-# Use the systems shell
-print "=== SHELL ==="
-
-cwd = $(pwd)
-print cwd
-
-whoami = $(whoami)
-print whoami
-
-$(echo "shell fire-and-forget works")
+# existing syntax still works too
+sum = 3 + 4
+print sum

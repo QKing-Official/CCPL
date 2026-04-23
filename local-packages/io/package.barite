@@ -1,4 +1,4 @@
 name: io
 version: 1.0
 description: print, strings, string variables
-provides: print, string
+provides: io.print, io.len, string

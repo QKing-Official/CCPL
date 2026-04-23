@@ -4,9 +4,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-/* ─────────────────────────────────────────────
-   TOKEN STREAM
-───────────────────────────────────────────── */
+// Token stream
 static Token *T;
 static int    pos;
 
@@ -27,9 +25,7 @@ static Token expect(TokenType type, const char *msg) {
     return adv();
 }
 
-/* ─────────────────────────────────────────────
-   PACKAGE REGISTRY
-───────────────────────────────────────────── */
+// Package registry
 #define MAX_PKGS 64
 static char imported[MAX_PKGS][64];
 static int  pkg_count = 0;
@@ -58,9 +54,7 @@ static void require_pkg(const char *pkg, const char *feature) {
     }
 }
 
-/* ─────────────────────────────────────────────
-   VARIABLE TYPE TRACKING
-───────────────────────────────────────────── */
+// Variable types
 typedef enum { VT_INT, VT_FLOAT, VT_STRING, VT_ARRAY_INT, VT_ARRAY_FLOAT, VT_ARRAY_STRING } VarType;
 
 #define MAX_VARS 256
@@ -91,16 +85,12 @@ static int var_exists(const char *name) {
     return 0;
 }
 
-/* ─────────────────────────────────────────────
-   FORWARD DECLARATIONS
-───────────────────────────────────────────── */
+// Declarations forward
 static void parse_block(FILE *out);
 static void parse_stmt(FILE *out);
 static VarType parse_expr(FILE *out);
 
-/* ─────────────────────────────────────────────
-   PACKAGE BLOCK
-───────────────────────────────────────────── */
+// Package block
 static int packages_done  = 0;
 static int g_auto_install = 0;
 
@@ -109,6 +99,40 @@ static int pkg_on_disk(const char *pkg) {
     snprintf(path, sizeof(path), "std/%s", pkg);
     struct stat st;
     return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static int pkg_runtime_on_disk(const char *pkg) {
+    char path[512];
+    struct stat st;
+    snprintf(path, sizeof(path), "std/%s/src/runtime.c", pkg);
+    return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
+static void emit_runtime_file(FILE *out, const char *path) {
+    FILE *rf = fopen(path, "r");
+    if (!rf) {
+        fprintf(stderr, "error: missing package runtime '%s'\n", path);
+        exit(1);
+    }
+
+    char buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), rf)) > 0) {
+        fwrite(buf, 1, n, out);
+    }
+    fclose(rf);
+    fprintf(out, "\n");
+}
+
+static void emit_imported_package_runtimes(FILE *out) {
+    char path[512];
+    for (int k = 0; k < pkg_count; k++) {
+        if (!pkg_runtime_on_disk(imported[k])) {
+            continue;
+        }
+        snprintf(path, sizeof(path), "std/%s/src/runtime.c", imported[k]);
+        emit_runtime_file(out, path);
+    }
 }
 
 static void parse_packages(void) {
@@ -154,35 +178,227 @@ static void parse_packages(void) {
     packages_done = 1;
 }
 
-/* ─────────────────────────────────────────────
-   EXPRESSION PARSER
-───────────────────────────────────────────── */
+// Expression parser
 
-/* forward declare unary so power can call it */
 static VarType parse_unary(FILE *out);
+static VarType parse_pkg_member_call(FILE *out, const char *pkg, const char *member);
 
-/* primary: literal, array literal, variable/index, len(), call, $(), ( expr ) */
+static int parse_call_args(char args[][256], VarType arg_types[], int max_args) {
+    int argc = 0;
+    if (cur().type != T_RPAREN) {
+        while (1) {
+            if (argc >= max_args) {
+                fprintf(stderr, "error: too many function arguments (max %d)\n", max_args);
+                exit(1);
+            }
+            char tmp[256] = {0};
+            FILE *tf = fmemopen(tmp, sizeof(tmp), "w");
+            arg_types[argc] = parse_expr(tf);
+            fclose(tf);
+            tmp[255] = '\0';
+            strncpy(args[argc], tmp, 255);
+            args[argc][255] = '\0';
+            argc++;
+
+            if (cur().type == T_COMMA) {
+                adv();
+                continue;
+            }
+            break;
+        }
+    }
+    expect(T_RPAREN, "expected ')' in function call");
+    return argc;
+}
+
+static VarType parse_pkg_member_call(FILE *out, const char *pkg, const char *member) {
+    char args[8][256];
+    VarType arg_types[8];
+    int argc = parse_call_args(args, arg_types, 8);
+
+    if (strcmp(pkg, "math") == 0) {
+        require_pkg("math", "math package call");
+        if (strcmp(member, "add") == 0 && argc == 2) {
+            fprintf(out, "ccpl_math_add(%s, %s)", args[0], args[1]);
+            return (arg_types[0] == VT_FLOAT || arg_types[1] == VT_FLOAT) ? VT_FLOAT : VT_INT;
+        }
+        if (strcmp(member, "sub") == 0 && argc == 2) {
+            fprintf(out, "ccpl_math_sub(%s, %s)", args[0], args[1]);
+            return (arg_types[0] == VT_FLOAT || arg_types[1] == VT_FLOAT) ? VT_FLOAT : VT_INT;
+        }
+        if (strcmp(member, "mul") == 0 && argc == 2) {
+            fprintf(out, "ccpl_math_mul(%s, %s)", args[0], args[1]);
+            return (arg_types[0] == VT_FLOAT || arg_types[1] == VT_FLOAT) ? VT_FLOAT : VT_INT;
+        }
+        if (strcmp(member, "div") == 0 && argc == 2) {
+            fprintf(out, "ccpl_math_div(%s, %s)", args[0], args[1]);
+            return VT_FLOAT;
+        }
+        if (strcmp(member, "mod") == 0 && argc == 2) {
+            fprintf(out, "ccpl_math_mod((int)(%s), (int)(%s))", args[0], args[1]);
+            return VT_INT;
+        }
+        if (strcmp(member, "pow") == 0 && argc == 2) {
+            fprintf(out, "ccpl_math_pow(%s, %s)", args[0], args[1]);
+            return VT_FLOAT;
+        }
+        fprintf(stderr, "error: unsupported math call '%s.%s'\n", pkg, member);
+        exit(1);
+    }
+
+    if (strcmp(pkg, "io") == 0) {
+        require_pkg("io", "io package call");
+        if (strcmp(member, "print") == 0 && argc == 1) {
+            switch (arg_types[0]) {
+                case VT_INT:
+                case VT_ARRAY_INT:
+                    fprintf(out, "(ccpl_io_print_int((int)(%s)), 0)", args[0]);
+                    break;
+                case VT_FLOAT:
+                case VT_ARRAY_FLOAT:
+                    fprintf(out, "(ccpl_io_print_float((double)(%s)), 0)", args[0]);
+                    break;
+                case VT_STRING:
+                case VT_ARRAY_STRING:
+                    fprintf(out, "(ccpl_io_print_str(%s), 0)", args[0]);
+                    break;
+            }
+            return VT_INT;
+        }
+        if (strcmp(member, "len") == 0 && argc == 1) {
+            fprintf(out, "ccpl_io_len(%s)", args[0]);
+            return VT_INT;
+        }
+        fprintf(stderr, "error: unsupported io call '%s.%s'\n", pkg, member);
+        exit(1);
+    }
+
+    if (strcmp(pkg, "shell") == 0) {
+        require_pkg("shell", "shell package call");
+        if (strcmp(member, "capture") == 0 && argc == 1) {
+            fprintf(out, "ccpl_shell(%s)", args[0]);
+            return VT_STRING;
+        }
+        if (strcmp(member, "exec") == 0 && argc == 1) {
+            fprintf(out, "(ccpl_shell_exec(%s), 0)", args[0]);
+            return VT_INT;
+        }
+        fprintf(stderr, "error: unsupported shell call '%s.%s'\n", pkg, member);
+        exit(1);
+    }
+
+    if (strcmp(pkg, "str") == 0) {
+        require_pkg("str", "str package call");
+        char cname[192];
+        snprintf(cname, sizeof(cname), "ccpl_%s_%s", pkg, member);
+        fprintf(out, "%s(", cname);
+        for (int i = 0; i < argc; i++) {
+            if (i) fprintf(out, ", ");
+            fprintf(out, "%s", args[i]);
+        }
+        fprintf(out, ")");
+
+        if (strcmp(member, "contains") == 0 || strcmp(member, "starts_with") == 0 ||
+            strcmp(member, "ends_with") == 0 || strcmp(member, "index_of") == 0 ||
+            strcmp(member, "to_int") == 0) {
+            return VT_INT;
+        }
+        if (strcmp(member, "to_float") == 0) {
+            return VT_FLOAT;
+        }
+        if (strcmp(member, "trim") == 0 || strcmp(member, "lower") == 0 || strcmp(member, "upper") == 0) {
+            return VT_STRING;
+        }
+        return VT_FLOAT;
+    }
+
+    if (strcmp(pkg, "rand") == 0) {
+        require_pkg("rand", "rand package call");
+        char cname[192];
+        snprintf(cname, sizeof(cname), "ccpl_%s_%s", pkg, member);
+        fprintf(out, "%s(", cname);
+        for (int i = 0; i < argc; i++) {
+            if (i) fprintf(out, ", ");
+            fprintf(out, "%s", args[i]);
+        }
+        fprintf(out, ")");
+
+        if (strcmp(member, "seed") == 0 || strcmp(member, "int") == 0 || strcmp(member, "choice_idx") == 0) {
+            return VT_INT;
+        }
+        if (strcmp(member, "float") == 0) {
+            return VT_FLOAT;
+        }
+        return VT_FLOAT;
+    }
+
+    if (strcmp(pkg, "dt") == 0) {
+        require_pkg("dt", "dt package call");
+        char cname[192];
+        snprintf(cname, sizeof(cname), "ccpl_%s_%s", pkg, member);
+        fprintf(out, "%s(", cname);
+        for (int i = 0; i < argc; i++) {
+            if (i) fprintf(out, ", ");
+            fprintf(out, "%s", args[i]);
+        }
+        fprintf(out, ")");
+
+        if (strcmp(member, "now_iso") == 0 || strcmp(member, "format_unix") == 0) {
+            return VT_STRING;
+        }
+        return VT_FLOAT;
+    }
+
+    if (strcmp(pkg, "crypto") == 0) {
+        require_pkg("crypto", "crypto package call");
+        char cname[192];
+        snprintf(cname, sizeof(cname), "ccpl_%s_%s", pkg, member);
+        fprintf(out, "%s(", cname);
+        for (int i = 0; i < argc; i++) {
+            if (i) fprintf(out, ", ");
+            fprintf(out, "%s", args[i]);
+        }
+        fprintf(out, ")");
+        return VT_STRING;
+    }
+
+    if (!pkg_imported(pkg)) {
+        fprintf(stderr, "error: package '%s' is not imported\n", pkg);
+        exit(1);
+    }
+
+    char cname[192];
+    snprintf(cname, sizeof(cname), "ccpl_%s_%s", pkg, member);
+    fprintf(out, "%s(", cname);
+    for (int i = 0; i < argc; i++) {
+        if (i) fprintf(out, ", ");
+        fprintf(out, "%s", args[i]);
+    }
+    fprintf(out, ")");
+    return VT_FLOAT;
+}
+
 static VarType parse_primary(FILE *out) {
 
-    /* integer literal */
+    // integer literal
     if (cur().type == T_INT) {
         fprintf(out, "%s", cur().value);
         adv();
         return VT_INT;
     }
 
-    /* float literal */
+    // float literal
     if (cur().type == T_FLOAT) {
         fprintf(out, "%s", cur().value);
         adv();
         return VT_FLOAT;
     }
 
-    /* boolean literals */
+    // boolean literals
     if (cur().type == T_TRUE)  { adv(); fprintf(out, "1"); return VT_INT; }
     if (cur().type == T_FALSE) { adv(); fprintf(out, "0"); return VT_INT; }
 
-    /* string literal */
+    // string literal
     if (cur().type == T_STRING) {
         require_pkg("io", "string literal");
         fprintf(out, "\"%s\"", cur().value);
@@ -190,12 +406,10 @@ static VarType parse_primary(FILE *out) {
         return VT_STRING;
     }
 
-    /* array literal: [ expr, expr, ... ] */
+    // array literal
     if (cur().type == T_LBRACKET) {
         require_pkg("math", "array literal");
         adv(); /* [ */
-        /* We emit a compound literal — caller must handle assignment context.
-           Determine element type from first element. */
         char elems[32][256];
         VarType etypes[32];
         int ecount = 0;
@@ -208,7 +422,6 @@ static VarType parse_primary(FILE *out) {
             if (cur().type == T_COMMA) adv();
         }
         expect(T_RBRACKET, "expected ']' to close array literal");
-        /* Pick C type from element types */
         VarType arr_vt = VT_ARRAY_INT;
         const char *ctype = "int";
         for (int k = 0; k < ecount; k++) {
@@ -221,11 +434,11 @@ static VarType parse_primary(FILE *out) {
             fprintf(out, "%s", elems[k]);
         }
         fprintf(out, "}");
-        (void)arr_vt; /* returned via caller's var tracking */
+        (void)arr_vt;
         return arr_vt;
     }
 
-    /* len(expr) */
+    // len(expr)
     if (cur().type == T_LEN) {
         require_pkg("io", "len()");
         adv(); /* len */
@@ -234,17 +447,12 @@ static VarType parse_primary(FILE *out) {
         VarType t = parse_expr(tf);
         fclose(tf); tmp[255] = '\0';
         expect(T_RPAREN, "expected ')' after len argument");
-        if (t == VT_STRING) {
-            fprintf(out, "(int)strlen(%s)", tmp);
-        } else {
-            /* arrays: can't easily get length at runtime without extra tracking,
-               so we emit a sizeof trick only for literals — warn otherwise */
-            fprintf(out, "(int)strlen(%s)", tmp);
-        }
+        (void)t;
+        fprintf(out, "ccpl_io_len(%s)", tmp);
         return VT_INT;
     }
 
-    /* shell capture: $( cmd ) */
+    // shell capture
     if (cur().type == T_DOLLAR_PAREN) {
         require_pkg("shell", "shell capture $()");
         fprintf(out, "ccpl_shell(\"%s\")", cur().value);
@@ -252,13 +460,26 @@ static VarType parse_primary(FILE *out) {
         return VT_STRING;
     }
 
-    /* function call, array index, variable */
+    // function calls
     if (cur().type == T_IDENT) {
         char name[64];
         strncpy(name, cur().value, 63); name[63] = '\0';
         adv();
 
-        /* function call */
+        // package member call: pkg.member(...)
+        if (cur().type == T_DOT) {
+            adv();
+            Token member_tok = cur();
+            if (member_tok.type != T_IDENT && member_tok.type != T_PRINT && member_tok.type != T_LEN) {
+                fprintf(stderr, "error: expected member name after '.' (got '%s')\n", cur().value);
+                exit(1);
+            }
+            adv();
+            expect(T_LPAREN, "expected '(' after package member name");
+            return parse_pkg_member_call(out, name, member_tok.value);
+        }
+
+        // function call
         if (cur().type == T_LPAREN) {
             adv();
             fprintf(out, "%s(", name);
@@ -275,7 +496,7 @@ static VarType parse_primary(FILE *out) {
             return VT_INT;
         }
 
-        /* array index: name[expr] */
+        // array index
         if (cur().type == T_LBRACKET) {
             adv(); /* [ */
             fprintf(out, "%s[", name);
@@ -288,7 +509,7 @@ static VarType parse_primary(FILE *out) {
             return VT_INT;
         }
 
-        /* post-increment / post-decrement */
+        // post inc/dec
         if (cur().type == T_PLUSPLUS)   { adv(); fprintf(out, "%s++", name); return VT_INT; }
         if (cur().type == T_MINUSMINUS) { adv(); fprintf(out, "%s--", name); return VT_INT; }
 
@@ -296,7 +517,7 @@ static VarType parse_primary(FILE *out) {
         return var_get(name);
     }
 
-    /* parenthesised expression */
+    // parenthesised expression
     if (cur().type == T_LPAREN) {
         adv();
         fprintf(out, "(");
@@ -310,7 +531,7 @@ static VarType parse_primary(FILE *out) {
     exit(1);
 }
 
-/* unary: - expr   !expr */
+// unary expressions
 static VarType parse_unary(FILE *out) {
     if (cur().type == T_MINUS) {
         adv();
@@ -329,9 +550,8 @@ static VarType parse_unary(FILE *out) {
     return parse_primary(out);
 }
 
-/* power: expr ** expr  or  expr ^ expr  (right-assoc via pow()) */
+// Power expressions
 static VarType parse_power(FILE *out) {
-    /* we need to buffer lhs to wrap in pow() if ** follows */
     char lhs[512];
     FILE *lf = fmemopen(lhs, sizeof(lhs), "w");
     VarType lt = parse_unary(lf);
@@ -344,7 +564,7 @@ static VarType parse_power(FILE *out) {
         FILE *rf = fmemopen(rhs, sizeof(rhs), "w");
         parse_power(rf); /* right-associative */
         fclose(rf); rhs[511] = '\0';
-        fprintf(out, "pow(%s, %s)", lhs, rhs);
+        fprintf(out, "ccpl_math_pow(%s, %s)", lhs, rhs);
         return VT_FLOAT;
     }
 
@@ -352,54 +572,88 @@ static VarType parse_power(FILE *out) {
     return lt;
 }
 
-/* multiplicative: * / % */
+// Mult
 static VarType parse_mul(FILE *out) {
-    VarType t = parse_power(out);
+    char acc[4096] = {0};
+    FILE *af = fmemopen(acc, sizeof(acc), "w");
+    VarType t = parse_power(af);
+    fclose(af);
+    acc[sizeof(acc)-1] = '\0';
+
     while (cur().type == T_STAR || cur().type == T_SLASH || cur().type == T_PERCENT) {
         require_pkg("math", "arithmetic");
         TokenType op = cur().type;
         adv();
-        if (op == T_STAR)    fprintf(out, " * ");
-        else if (op == T_SLASH)   fprintf(out, " / ");
-        else                      fprintf(out, " %% ");
-        VarType r = parse_power(out);
-        if (t == VT_FLOAT || r == VT_FLOAT) t = VT_FLOAT;
-        if (op == T_PERCENT) t = VT_INT; /* modulo always int */
-    }
-    return t;
-}
 
-/* additive: + -  (also string concat with +) */
-static VarType parse_add(FILE *out) {
-    VarType t = parse_mul(out);
-    while (cur().type == T_PLUS || cur().type == T_MINUS) {
-        TokenType op = cur().type;
+        char rhs[2048] = {0};
+        FILE *rf = fmemopen(rhs, sizeof(rhs), "w");
+        VarType r = parse_power(rf);
+        fclose(rf);
+        rhs[sizeof(rhs)-1] = '\0';
 
-        /* string concat: use a helper emitted in preamble */
-        if (op == T_PLUS && t == VT_STRING) {
-            require_pkg("io", "string concatenation");
-            adv();
-            char rhs[512]; FILE *rf = fmemopen(rhs, sizeof(rhs), "w");
-            parse_mul(rf);
-            fclose(rf); rhs[511] = '\0';
-            /* wrap lhs in a concat call — rewrite what we already emitted.
-               We can't easily undo fprintf, so we buffer the whole add chain. */
-            fprintf(out, " /* str+: use strcat */ ");
-            /* Emit as runtime strcat into a static buffer */
-            fprintf(out, "ccpl_strcat(%s)", rhs);
-            return VT_STRING;
+        char next[4096] = {0};
+        if (op == T_STAR) {
+            snprintf(next, sizeof(next), "ccpl_math_mul(%s, %s)", acc, rhs);
+            if (t == VT_FLOAT || r == VT_FLOAT) t = VT_FLOAT;
+        } else if (op == T_SLASH) {
+            snprintf(next, sizeof(next), "ccpl_math_div(%s, %s)", acc, rhs);
+            t = VT_FLOAT;
+        } else {
+            snprintf(next, sizeof(next), "ccpl_math_mod((int)(%s), (int)(%s))", acc, rhs);
+            t = VT_INT;
         }
 
-        if (op == T_PLUS) require_pkg("math", "arithmetic");
-        adv();
-        fprintf(out, op == T_PLUS ? " + " : " - ");
-        VarType r = parse_mul(out);
-        if (t == VT_FLOAT || r == VT_FLOAT) t = VT_FLOAT;
+        strncpy(acc, next, sizeof(acc)-1);
+        acc[sizeof(acc)-1] = '\0';
     }
+
+    fprintf(out, "%s", acc);
     return t;
 }
 
-/* comparison: == != < > <= >= */
+// Additive
+static VarType parse_add(FILE *out) {
+    char acc[4096] = {0};
+    FILE *af = fmemopen(acc, sizeof(acc), "w");
+    VarType t = parse_mul(af);
+    fclose(af);
+    acc[sizeof(acc)-1] = '\0';
+
+    while (cur().type == T_PLUS || cur().type == T_MINUS) {
+        TokenType op = cur().type;
+        adv();
+
+        char rhs[2048] = {0};
+        FILE *rf = fmemopen(rhs, sizeof(rhs), "w");
+        VarType r = parse_mul(rf);
+        fclose(rf);
+        rhs[sizeof(rhs)-1] = '\0';
+
+        char next[4096] = {0};
+        if (op == T_PLUS && (t == VT_STRING || r == VT_STRING)) {
+            require_pkg("io", "string concatenation");
+            snprintf(next, sizeof(next), "ccpl_strcat_fn(%s, %s)", acc, rhs);
+            t = VT_STRING;
+        } else {
+            require_pkg("math", "arithmetic");
+            if (op == T_PLUS)
+                snprintf(next, sizeof(next), "ccpl_math_add(%s, %s)", acc, rhs);
+            else
+                snprintf(next, sizeof(next), "ccpl_math_sub(%s, %s)", acc, rhs);
+
+            if (t == VT_FLOAT || r == VT_FLOAT) t = VT_FLOAT;
+            else t = VT_INT;
+        }
+
+        strncpy(acc, next, sizeof(acc)-1);
+        acc[sizeof(acc)-1] = '\0';
+    }
+
+    fprintf(out, "%s", acc);
+    return t;
+}
+
+// Comparisons
 static VarType parse_cmp(FILE *out) {
     VarType t = parse_add(out);
     while (cur().type == T_EQEQ || cur().type == T_NEQ ||
@@ -423,7 +677,7 @@ static VarType parse_cmp(FILE *out) {
     return t;
 }
 
-/* logical AND: && */
+// logical AND: &&
 static VarType parse_and(FILE *out) {
     VarType t = parse_cmp(out);
     while (cur().type == T_AND) {
@@ -435,7 +689,7 @@ static VarType parse_and(FILE *out) {
     return t;
 }
 
-/* logical OR: || */
+// logical OR: ||
 static VarType parse_or(FILE *out) {
     VarType t = parse_and(out);
     while (cur().type == T_OR) {
@@ -451,9 +705,7 @@ static VarType parse_expr(FILE *out) {
     return parse_or(out);
 }
 
-/* ─────────────────────────────────────────────
-   STATEMENT PARSER
-───────────────────────────────────────────── */
+// Statement parser
 
 static void parse_if(FILE *out) {
     fprintf(out, "if (");
@@ -561,11 +813,11 @@ static void parse_print(FILE *out) {
 
     switch (t) {
         case VT_INT:
-        case VT_ARRAY_INT:    fprintf(out, "printf(\"%%d\\n\", (int)(%s));\n",    tmp); break;
+        case VT_ARRAY_INT:    fprintf(out, "ccpl_io_print_int((int)(%s));\n",    tmp); break;
         case VT_FLOAT:
-        case VT_ARRAY_FLOAT:  fprintf(out, "printf(\"%%.6g\\n\", (double)(%s));\n", tmp); break;
+        case VT_ARRAY_FLOAT:  fprintf(out, "ccpl_io_print_float((double)(%s));\n", tmp); break;
         case VT_STRING:
-        case VT_ARRAY_STRING: fprintf(out, "printf(\"%%s\\n\", %s);\n",           tmp); break;
+        case VT_ARRAY_STRING: fprintf(out, "ccpl_io_print_str(%s);\n",           tmp); break;
     }
 }
 
@@ -577,51 +829,48 @@ static void parse_return(FILE *out) {
 
 static void parse_shell_stmt(FILE *out) {
     require_pkg("shell", "shell command $()");
-    fprintf(out, "system(\"%s\");\n", cur().value);
+    fprintf(out, "ccpl_shell_exec(\"%s\");\n", cur().value);
     adv();
 }
 
 static void parse_assign_or_expr(FILE *out) {
-    /* array element assignment: name[idx] = expr */
+    // array element assignment
     if (cur().type == T_IDENT && peek_ahead().type == T_LBRACKET) {
-        /* peek further to detect assignment */
         int save = pos;
         char name[64];
         strncpy(name, cur().value, 63); name[63] = '\0';
-        adv(); /* name */
-        adv(); /* [ */
-        /* skip index expression tokens to find ] = */
+        adv();
+        adv();
+        // skip index expression tokens to find ] =
         int depth = 1;
         while (cur().type != T_EOF && depth > 0) {
             if (cur().type == T_LBRACKET) depth++;
             if (cur().type == T_RBRACKET) depth--;
             if (depth > 0) adv(); else break;
         }
-        adv(); /* ] */
+        adv(); // ]
         if (cur().type == T_EQ) {
-            /* it is an indexed assignment */
             pos = save;
-            adv(); /* name */
+            adv();
             fprintf(out, "%s[", name);
-            adv(); /* [ */
+            adv();
             parse_expr(out);
             expect(T_RBRACKET, "expected ']' in indexed assignment");
             fprintf(out, "] = ");
-            adv(); /* = */
+            adv();
             parse_expr(out);
             fprintf(out, ";\n");
             return;
         }
-        /* not an assignment — rewind and fall through to expr */
         pos = save;
     }
 
-    /* simple assignment: name = expr */
+    // simple assignment
     if (cur().type == T_IDENT && peek_ahead().type == T_EQ) {
         char name[64];
         strncpy(name, cur().value, 63); name[63] = '\0';
-        adv(); /* name */
-        adv(); /* = */
+        adv();
+        adv();
 
         char tmp[1024];
         FILE *tmp_f = fmemopen(tmp, sizeof(tmp), "w");
@@ -629,10 +878,10 @@ static void parse_assign_or_expr(FILE *out) {
         fclose(tmp_f);
         tmp[sizeof(tmp)-1] = '\0';
 
-        /* determine C type */
+        // determine C type
         const char *ctype;
         int elem_count = 0;
-        /* detect array literal size from tmp (count commas at depth 0 inside {}) */
+        // detect array literal size from tmp (count commas at depth 0 inside {})
         if (t == VT_ARRAY_INT || t == VT_ARRAY_FLOAT || t == VT_ARRAY_STRING) {
             int d = 0;
             elem_count = 1;
@@ -655,10 +904,9 @@ static void parse_assign_or_expr(FILE *out) {
 
         if (!var_exists(name)) {
             if (t == VT_STRING) require_pkg("io", "string variable");
-            else                require_pkg("math", "variable assignment");
 
             if (t == VT_ARRAY_INT || t == VT_ARRAY_FLOAT || t == VT_ARRAY_STRING) {
-                /* declare a fixed-size array and initialise from compound literal */
+                // declare a fixed-size array and initialise from compound literal
                 fprintf(out, "%s %s[] = %s;\n", ctype, name, tmp);
             } else {
                 fprintf(out, "%s %s = %s;\n", ctype, name, tmp);
@@ -670,7 +918,7 @@ static void parse_assign_or_expr(FILE *out) {
         return;
     }
 
-    /* plain expression statement */
+    // Plain statement
     parse_expr(out);
     fprintf(out, ";\n");
 }
@@ -696,9 +944,7 @@ static void parse_block(FILE *out) {
         parse_stmt(out);
 }
 
-/* ─────────────────────────────────────────────
-   PUBLIC ENTRY POINT
-───────────────────────────────────────────── */
+// Public entry point
 
 static void skip_block(void) {
     expect(T_LBRACE, "expected '{' in def body");
@@ -724,35 +970,17 @@ int parse(Token *t, FILE *out, int auto_install) {
         "#include <string.h>\n"
         "#include <math.h>\n"
         "\n"
-        "/* ccpl runtime */\n"
-        "static char _ccpl_shell_buf[4096];\n"
-        "static const char* ccpl_shell(const char *cmd) {\n"
-        "    FILE *p = popen(cmd, \"r\");\n"
-        "    if (!p) return \"\";\n"
-        "    int n = (int)fread(_ccpl_shell_buf, 1, sizeof(_ccpl_shell_buf)-1, p);\n"
-        "    pclose(p);\n"
-        "    _ccpl_shell_buf[n] = '\\0';\n"
-        "    if (n > 0 && _ccpl_shell_buf[n-1] == '\\n') _ccpl_shell_buf[n-1] = '\\0';\n"
-        "    return _ccpl_shell_buf;\n"
-        "}\n"
-        "static char _ccpl_concat_buf[4096];\n"
-        "static const char* ccpl_strcat_fn(const char *a, const char *b) {\n"
-        "    int _la=(int)strlen(a),_lb=(int)strlen(b);\n"
-        "    if(_la+_lb<4094){memcpy(_ccpl_concat_buf,a,_la);"
-        "    memcpy(_ccpl_concat_buf+_la,b,_lb);"
-        "    _ccpl_concat_buf[_la+_lb]=0;}\n"
-        "    return _ccpl_concat_buf;\n"
-        "}\n\n"
+        "/* package runtimes are injected from std/<pkg>/src/runtime.c */\n\n"
     );
 
-    /* forward-declare all functions */
+    // forward-declare all functions
     for (int k = 0; t[k].type != T_EOF; k++) {
         if (t[k].type == T_DEF && t[k+1].type != T_EOF && t[k+1].type == T_IDENT)
             fprintf(out, "double %s();\n", t[k+1].value);
     }
     fprintf(out, "\n");
 
-    /* pass 1: package scan */
+    // pass 1: package scan
     for (int k = 0; t[k].type != T_EOF; k++) {
         if (t[k].type == T_PACKAGES) {
             pos = k + 1;
@@ -761,23 +989,25 @@ int parse(Token *t, FILE *out, int auto_install) {
         }
     }
 
-    /* pass 1b: emit def bodies */
+    emit_imported_package_runtimes(out);
+
+    // pass 1b: emit def bodies
     pos = 0;
     while (cur().type != T_EOF) {
         if (cur().type == T_DEF) { adv(); parse_def(out); }
         else adv();
     }
 
-    /* pass 2: emit main() */
+    // pass 2: emit main()
     pos = 0;
     var_count = 0;
     fprintf(out, "\nint main(void) {\n");
 
     while (cur().type != T_EOF) {
         if (cur().type == T_DEF) {
-            adv(); adv(); adv(); /* def name ( */
+            adv(); adv(); adv();
             while (cur().type != T_RPAREN && cur().type != T_EOF) adv();
-            adv(); /* ) */
+            adv();
             skip_block();
         } else {
             parse_stmt(out);

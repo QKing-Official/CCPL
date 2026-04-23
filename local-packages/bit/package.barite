@@ -1,0 +1,4 @@
+name: bit
+version: 1.0
+description: bitwise integer helpers
+provides: bit.and, bit.or, bit.xor, bit.shl, bit.shr, bit.not, bit.set, bit.clear, bit.toggle, bit.has, bit.popcount

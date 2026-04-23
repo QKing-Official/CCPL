@@ -1,0 +1,4 @@
+name: time
+version: 1.0
+description: wall clock and monotonic time helpers
+provides: time.unix, time.now_ms, time.monotonic_ms, time.sleep_ms

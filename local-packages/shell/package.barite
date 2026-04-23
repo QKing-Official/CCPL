@@ -1,4 +1,4 @@
 name: shell
 version: 1.0
 description: run shell commands and capture output with $()
-provides: shell_capture, shell_exec
+provides: shell.capture, shell.exec

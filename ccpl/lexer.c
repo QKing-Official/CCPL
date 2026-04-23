@@ -46,14 +46,14 @@ int lex(const char *input, Token *t) {
 
     while (peek()) {
 
-        /* skip whitespace and comments */
+        // Whitespaces and new lines
         if (isspace((unsigned char)peek())) { adv(); continue; }
         if (peek() == '#') {
             while (peek() && peek() != '\n') adv();
             continue;
         }
 
-        /* $( shell capture */
+        // $( shell capture
         if (peek() == '$' && peek2() == '(') {
             adv(); adv(); /* skip $( */
             char buf[256]; int j = 0;
@@ -69,9 +69,9 @@ int lex(const char *input, Token *t) {
             continue;
         }
 
-        /* three-char: ... none yet */
+        // three-char: ... none yet....
 
-        /* two-char operators */
+        // Two char ops
         if (peek() == '=' && peek2() == '=') { adv(); adv(); add(t,&n,T_EQEQ,    "=="); continue; }
         if (peek() == '!' && peek2() == '=') { adv(); adv(); add(t,&n,T_NEQ,     "!="); continue; }
         if (peek() == '<' && peek2() == '=') { adv(); adv(); add(t,&n,T_LTE,     "<="); continue; }
@@ -82,7 +82,7 @@ int lex(const char *input, Token *t) {
         if (peek() == '&' && peek2() == '&') { adv(); adv(); add(t,&n,T_AND,     "&&"); continue; }
         if (peek() == '|' && peek2() == '|') { adv(); adv(); add(t,&n,T_OR,      "||"); continue; }
 
-        /* single-char operators */
+        // Single char ops
         if (peek() == '=') { adv(); add(t,&n,T_EQ,       "=");  continue; }
         if (peek() == '<') { adv(); add(t,&n,T_LT,       "<");  continue; }
         if (peek() == '>') { adv(); add(t,&n,T_GT,       ">");  continue; }
@@ -100,11 +100,12 @@ int lex(const char *input, Token *t) {
         if (peek() == '}') { adv(); add(t,&n,T_RBRACE,   "}");  continue; }
         if (peek() == '[') { adv(); add(t,&n,T_LBRACKET, "[");  continue; }
         if (peek() == ']') { adv(); add(t,&n,T_RBRACKET, "]");  continue; }
+        if (peek() == '.') { adv(); add(t,&n,T_DOT,      ".");  continue; }
         if (peek() == ',') { adv(); add(t,&n,T_COMMA,    ",");  continue; }
 
-        /* string literal */
+        // String literal
         if (peek() == '"') {
-            adv(); /* skip opening quote */
+            adv();
             char buf[256]; int j = 0;
             while (peek() && peek() != '"') {
                 if (peek() == '\\') {
@@ -118,13 +119,13 @@ int lex(const char *input, Token *t) {
                     if (j < 255) buf[j++] = adv(); else adv();
                 }
             }
-            if (peek() == '"') adv(); /* skip closing quote */
+            if (peek() == '"') adv();
             buf[j] = '\0';
             add(t, &n, T_STRING, buf);
             continue;
         }
 
-        /* number: int or float */
+        // Number, int or float
         if (isdigit((unsigned char)peek())) {
             char buf[64]; int j = 0;
             int is_float = 0;
@@ -139,7 +140,7 @@ int lex(const char *input, Token *t) {
             continue;
         }
 
-        /* identifier or keyword */
+        // Identifier or keyword
         if (isalpha((unsigned char)peek()) || peek() == '_') {
             char buf[64]; int j = 0;
             while ((isalnum((unsigned char)peek()) || peek() == '_') && j < 63)
@@ -149,7 +150,7 @@ int lex(const char *input, Token *t) {
             continue;
         }
 
-        /* skip unknown chars */
+        // Skip when not known
         adv();
     }
 
