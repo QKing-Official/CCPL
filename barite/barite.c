@@ -10,19 +10,19 @@
 
 // Helpers
 
-/* strip optional =version suffix from package name */
+// strip optional =version suffix from package name
 static void strip_version(char *pkg) {
     char *eq = strchr(pkg, '=');
     if (eq) *eq = '\0';
 }
 
-/* check if a directory exists */
+// check if a directory exists
 static int dir_exists(const char *path) {
     struct stat st;
     return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
-/* read package.barite field value, e.g. "name", "version", "description" */
+// read package.barite field value, e.g. "name", "version", "description"
 static int read_field(const char *path, const char *field, char *out, int outsz) {
     FILE *f = fopen(path, "r");
     if (!f) return 0;
@@ -46,8 +46,7 @@ static int read_field(const char *path, const char *field, char *out, int outsz)
     return 0;
 }
 
-/* resolve the std/ output dir: use BARITE_STD_DIR env var if set,
-   else fall back to global install dir if it exists, else use local ./std */
+// resolve the std/ output dir: use BARITE_STD_DIR env var if set, else fall back to global install dir if it exists, else use local ./std
 static void resolve_std_dir(char *out, int outsz) {
     const char *env = getenv("BARITE_STD_DIR");
     if (env && env[0]) {
@@ -66,14 +65,14 @@ static void resolve_std_dir(char *out, int outsz) {
     out[outsz - 1] = '\0';
 }
 
-/* resolve local-packages dir: check ./local-packages first, then global */
+// resolve local-packages dir: check ./local-packages first, then global
 static void resolve_local_pkg_dir(const char *pkg, char *out, int outsz) {
     snprintf(out, outsz, "local-packages/%s", pkg);
     if (dir_exists(out)) return;
     snprintf(out, outsz, "%s/local-packages/%s", GLOBAL_INSTALL_DIR, pkg);
 }
 
-// install
+// installatiom process
 
 int barite_install(const char *source, const char *pkg_raw) {
 
@@ -132,14 +131,14 @@ int barite_install(const char *source, const char *pkg_raw) {
         return 1;
     }
 
-    /* create destination and copy */
+    // create destination and copy
     snprintf(cmd, sizeof(cmd), "mkdir -p \"%s\"", dst_path);
     system(cmd);
 
     snprintf(cmd, sizeof(cmd), "cp -r \"%s/\"* \"%s/\" 2>/dev/null", src_path, dst_path);
     system(cmd);
 
-    /* read and print package info */
+    // read and print package info
     char meta[512];
     char version[64] = "?";
     char description[256] = "";
@@ -203,7 +202,6 @@ void barite_list(void) {
     char line[512];
     int found = 0;
     while (fgets(line, sizeof(line), pipe)) {
-        /* strip newline */
         int len = strlen(line);
         while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) line[--len] = '\0';
 
@@ -217,8 +215,8 @@ void barite_list(void) {
         read_field(meta, "version",     version, sizeof(version));
         read_field(meta, "description", desc,    sizeof(desc));
 
+        // fallback for if name is somehow null
         if (name[0] == '\0') {
-            /* fallback: use dir name */
             char *slash = strrchr(line, '/');
             strncpy(name, slash ? slash + 1 : line, sizeof(name) - 1);
         }
@@ -231,6 +229,7 @@ void barite_list(void) {
     if (!found) printf("  (none)\n");
 }
 
+// Info about barrite
 void barite_info(const char *source, const char *pkg_raw) {
 
     char pkg[128];
@@ -245,7 +244,7 @@ void barite_info(const char *source, const char *pkg_raw) {
     if (strcmp(source, "local") == 0) {
         resolve_local_pkg_dir(pkg, src_path, sizeof(src_path));
     } else {
-        /* "installed" or anything else: look in std dir */
+        // "installed" or anything else: look in std dir
         snprintf(src_path, sizeof(src_path), "%s/%s", std_dir, pkg);
     }
 
@@ -266,29 +265,29 @@ void barite_info(const char *source, const char *pkg_raw) {
     }
 }
 
-// Usage
+// The help command of Barite
 
 static void usage(void) {
     printf(
         "barite — CCPL package manager\n"
         "\n"
         "Usage:\n"
-        "  barite install <pkg>         install a cloud package (default source)\n"
-        "  barite install cloud <pkg>   install a cloud package\n"
-        "  barite install local <pkg>   install a local package\n"
-        "  barite remove <pkg>          remove an installed package\n"
-        "  barite list                  list installed packages\n"
-        "  barite info local <pkg>      show local package info\n"
-        "  barite info installed <pkg>  show info for installed package\n"
+        "  barite-cli install <pkg>         install a cloud package (default source)\n"
+        "  barite-cli install cloud <pkg>   install a cloud package\n"
+        "  barite-cli install local <pkg>   install a local package\n"
+        "  barite-cli remove <pkg>          remove an installed package\n"
+        "  barite-cli list                  list installed packages\n"
+        "  barite-cli info local <pkg>      show local package info\n"
+        "  barite-cli info installed <pkg>  show info for installed package\n"
         "\n"
         "Examples:\n"
-        "  barite install math\n"
-        "  barite install cloud io\n"
-        "  barite install local math\n"
-        "  barite install local io\n"
-        "  barite install local shell\n"
-        "  barite list\n"
-        "  barite remove math\n"
+        "  barite-cli install math\n"
+        "  barite-cli install cloud io\n"
+        "  barite-cli install local math\n"
+        "  barite-cli install local io\n"
+        "  barite-cli install local shell\n"
+        "  barite-cli list\n"
+        "  barite-cli remove math\n"
         "\n"
         "Environment:\n"
         "  BARITE_STD_DIR   override the directory where packages are installed\n"
@@ -306,7 +305,7 @@ int main(int argc, char **argv) {
 
     const char *cmd = argv[1];
 
-    /* install [cloud|local] <pkg> [pkg2 ...] */
+    // install [cloud|local] <pkg> [pkg2 ...]
     if (strcmp(cmd, "install") == 0) {
         if (argc < 3) {
             fprintf(stderr, "usage: barite install [cloud|local] <package>\n");
@@ -331,7 +330,7 @@ int main(int argc, char **argv) {
         return rc;
     }
 
-    /* remove <pkg> [pkg2 ...] */
+    // remove <pkg> [pkg2 ...]
     if (strcmp(cmd, "remove") == 0) {
         if (argc < 3) {
             fprintf(stderr, "usage: barite remove <package>\n");
@@ -343,13 +342,13 @@ int main(int argc, char **argv) {
         return rc;
     }
 
-    /* list */
+    // list
     if (strcmp(cmd, "list") == 0) {
         barite_list();
         return 0;
     }
 
-    /* info <source> <pkg> */
+    // info <source> <pkg>
     if (strcmp(cmd, "info") == 0) {
         if (argc < 4) {
             fprintf(stderr, "usage: barite info <local|installed> <package>\n");

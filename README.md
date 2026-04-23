@@ -151,7 +151,7 @@ barite-cli info local math         # show info for a local/bundled package
 
 ### Auto-install via Compiler
 
-Pass `-a` to the compiler to have it call Barite automatically when a required package is missing. It tries cloud first, then falls back to local packages:
+Pass `-a` to the compiler to have it call Barite automatically when a required package is missing. It will install the required packages for you. It tries cloud first, then falls back to local packages:
 
 ```bash
 ccpl program.ccpl -a
@@ -171,6 +171,9 @@ packages = {
 }
 ```
 
+The current packages that exist are listed below. Some libraries may not be included in the local version. Check the BariteStd repo for that: https://github.com/QKing-Official/BariteStd. It is the repository where the cloud install fetches it's packages from.
+
+
 | Package | Description |
 |---------|-------------|
 | `io` | `print`, string variables, string concatenation, `len()` |
@@ -187,25 +190,6 @@ Package function calls use dot notation and map directly to C symbols:
 math.add(a, b)    →    ccpl_math_add(a, b)
 io.print(x)       →    ccpl_io_print_int(x)  (type-dispatched)
 shell.capture(cmd) →   ccpl_shell(cmd)
-```
-
----
-
-## GUI
-
-CCPL includes a GTK3-based GUI for compiling and running programs without the terminal.
-
-### Install GTK3 dependencies
-
-```bash
-sudo apt install libgtk-3-dev
-```
-
-### Build the GUI
-
-```bash
-cd CCPLGUI
-gcc ccpl_gui.c icon.h -o ccpl_gui `pkg-config --cflags --libs gtk+-3.0`
 ```
 
 ---
