@@ -2,11 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/stat.h>
 
-#define CLOUD_REPO_URL   "https://github.com/QKing-Official/BariteStd.git"
-#define CLOUD_CACHE_DIR  "/tmp/barite-std-cache"
+#define CLOUD_REPO_URL     "https://github.com/QKing-Official/BariteStd.git"
+#define CLOUD_CACHE_DIR    "/tmp/barite-std-cache"
 #define GLOBAL_INSTALL_DIR "/opt/ccpl"
+#define BARITE_VERSION "0.2"
 
 // Helpers
 
@@ -33,7 +35,6 @@ static int read_field(const char *path, const char *field, char *out, int outsz)
         if (strncmp(line, prefix, strlen(prefix)) == 0) {
             char *val = line + strlen(prefix);
             while (*val == ' ' || *val == '\t') val++;
-            /* strip trailing newline */
             int len = strlen(val);
             while (len > 0 && (val[len-1] == '\n' || val[len-1] == '\r')) val[--len] = '\0';
             strncpy(out, val, outsz - 1);
@@ -46,7 +47,15 @@ static int read_field(const char *path, const char *field, char *out, int outsz)
     return 0;
 }
 
-// resolve the std/ output dir: use BARITE_STD_DIR env var if set, else fall back to global install dir if it exists, else use local ./std
+// try "description" first, fall back to "desc"
+static void read_description(const char *meta, char *out, int outsz) {
+    out[0] = '\0';
+    if (read_field(meta, "description", out, outsz) && out[0]) return;
+    read_field(meta, "desc", out, outsz);
+}
+
+// resolve the std/ output dir: use BARITE_STD_DIR env var if set,
+// else fall back to global install dir if it exists, else use local ./std
 static void resolve_std_dir(char *out, int outsz) {
     const char *env = getenv("BARITE_STD_DIR");
     if (env && env[0]) {
@@ -72,7 +81,22 @@ static void resolve_local_pkg_dir(const char *pkg, char *out, int outsz) {
     snprintf(out, outsz, "%s/local-packages/%s", GLOBAL_INSTALL_DIR, pkg);
 }
 
-// installatiom process
+// lowercase a string in-place
+static void str_tolower(char *s) {
+    for (; *s; s++) *s = tolower((unsigned char)*s);
+}
+
+// return 1 if needle (already lowercased) appears in haystack (case-insensitive)
+static int icontains(const char *haystack, const char *needle_lower) {
+    if (!haystack[0] || !needle_lower[0]) return 0;
+    char buf[512];
+    strncpy(buf, haystack, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    str_tolower(buf);
+    return strstr(buf, needle_lower) != NULL;
+}
+
+// installation process
 
 int barite_install(const char *source, const char *pkg_raw) {
 
@@ -100,11 +124,9 @@ int barite_install(const char *source, const char *pkg_raw) {
         }
 
         snprintf(
-            cmd,
-            sizeof(cmd),
+            cmd, sizeof(cmd),
             "git clone --depth 1 \"%s\" \"%s\" >/dev/null 2>&1",
-            CLOUD_REPO_URL,
-            CLOUD_CACHE_DIR
+            CLOUD_REPO_URL, CLOUD_CACHE_DIR
         );
         if (system(cmd) != 0) {
             fprintf(stderr,
@@ -115,9 +137,8 @@ int barite_install(const char *source, const char *pkg_raw) {
         }
 
         snprintf(src_path, sizeof(src_path), "%s/%s", CLOUD_CACHE_DIR, pkg);
-        if (!dir_exists(src_path)) {
+        if (!dir_exists(src_path))
             snprintf(src_path, sizeof(src_path), "%s/std/%s", CLOUD_CACHE_DIR, pkg);
-        }
 
         snprintf(dst_path, sizeof(dst_path), "%s/%s", std_dir, pkg);
 
@@ -134,17 +155,16 @@ int barite_install(const char *source, const char *pkg_raw) {
     // create destination and copy
     snprintf(cmd, sizeof(cmd), "mkdir -p \"%s\"", dst_path);
     system(cmd);
-
     snprintf(cmd, sizeof(cmd), "cp -r \"%s/\"* \"%s/\" 2>/dev/null", src_path, dst_path);
     system(cmd);
 
     // read and print package info
     char meta[512];
-    char version[64] = "?";
+    char version[64]      = "?";
     char description[256] = "";
     snprintf(meta, sizeof(meta), "%s/package.barite", src_path);
-    read_field(meta, "version",     version,     sizeof(version));
-    read_field(meta, "description", description, sizeof(description));
+    read_field(meta, "version", version, sizeof(version));
+    read_description(meta, description, sizeof(description));
 
     printf("Installing %s package: %s", source, pkg);
     if (strcmp(version, "?") != 0) printf(" (v%s)", version);
@@ -211,11 +231,11 @@ void barite_list(void) {
         char name[64]    = "";
         char version[64] = "?";
         char desc[256]   = "";
-        read_field(meta, "name",        name,    sizeof(name));
-        read_field(meta, "version",     version, sizeof(version));
-        read_field(meta, "description", desc,    sizeof(desc));
+        read_field(meta, "name",    name,    sizeof(name));
+        read_field(meta, "version", version, sizeof(version));
+        read_description(meta, desc, sizeof(desc));
 
-        // fallback for if name is somehow null
+        // fallback if name field is missing
         if (name[0] == '\0') {
             char *slash = strrchr(line, '/');
             strncpy(name, slash ? slash + 1 : line, sizeof(name) - 1);
@@ -229,7 +249,7 @@ void barite_list(void) {
     if (!found) printf("  (none)\n");
 }
 
-// Info about barrite
+// Info about barite
 void barite_info(const char *source, const char *pkg_raw) {
 
     char pkg[128];
@@ -260,8 +280,157 @@ void barite_info(const char *source, const char *pkg_raw) {
     printf("Package info: %s\n", pkg);
     for (int i = 0; i < 5; i++) {
         char val[256] = "";
-        if (read_field(meta, fields[i], val, sizeof(val)))
-            printf("  %-12s %s\n", fields[i], val);
+        if (strcmp(fields[i], "description") == 0) {
+            read_description(meta, val, sizeof(val));
+            if (val[0]) printf("  %-12s %s\n", fields[i], val);
+        } else {
+            if (read_field(meta, fields[i], val, sizeof(val)))
+                printf("  %-12s %s\n", fields[i], val);
+        }
+    }
+}
+
+// Search packages by name or description
+void barite_search(const char *term, int include_cloud) {
+
+    char std_dir[512];
+    resolve_std_dir(std_dir, sizeof(std_dir));
+
+    // pre-lowercase the search term once
+    char term_lower[128];
+    strncpy(term_lower, term, sizeof(term_lower) - 1);
+    term_lower[sizeof(term_lower) - 1] = '\0';
+    str_tolower(term_lower);
+
+    int found = 0;
+
+    // --- Search installed packages ---
+    char find_cmd[600];
+    snprintf(find_cmd, sizeof(find_cmd),
+        "find \"%s\" -maxdepth 1 -mindepth 1 -type d 2>/dev/null", std_dir);
+
+    FILE *pipe = popen(find_cmd, "r");
+    if (pipe) {
+        char line[512];
+        int header_printed = 0;
+        while (fgets(line, sizeof(line), pipe)) {
+            int len = strlen(line);
+            while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) line[--len] = '\0';
+
+            char meta[600];
+            snprintf(meta, sizeof(meta), "%s/package.barite", line);
+
+            char name[64]    = "";
+            char version[64] = "?";
+            char desc[256]   = "";
+            read_field(meta, "name",    name,    sizeof(name));
+            read_field(meta, "version", version, sizeof(version));
+            read_description(meta, desc, sizeof(desc));
+
+            // fallback: use directory name if name field is missing
+            if (name[0] == '\0') {
+                char *slash = strrchr(line, '/');
+                strncpy(name, slash ? slash + 1 : line, sizeof(name) - 1);
+                name[sizeof(name) - 1] = '\0';
+            }
+
+            // match against name, description, AND directory name
+            char *dirslash = strrchr(line, '/');
+            const char *dirname = dirslash ? dirslash + 1 : line;
+
+            if (icontains(name,    term_lower) ||
+                icontains(desc,    term_lower) ||
+                icontains(dirname, term_lower))
+            {
+                if (!header_printed) {
+                    printf("Installed packages matching '%s':\n", term);
+                    header_printed = 1;
+                }
+                printf("  [installed] %-12s v%-8s %s\n", name, version, desc);
+                found++;
+            }
+        }
+        pclose(pipe);
+    }
+
+    // --- Search cloud packages (optional) ---
+    if (include_cloud) {
+        char cmd[2048];
+        snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", CLOUD_CACHE_DIR);
+        system(cmd);
+        snprintf(cmd, sizeof(cmd),
+            "git clone --depth 1 \"%s\" \"%s\" >/dev/null 2>&1",
+            CLOUD_REPO_URL, CLOUD_CACHE_DIR);
+
+        if (system(cmd) != 0) {
+            fprintf(stderr, "barite: failed to fetch cloud packages for search\n"
+                            "  check internet connection and git availability\n");
+        } else {
+            // try both root-level and std/ subdirectory layouts
+            char root_std[512];
+            snprintf(root_std, sizeof(root_std), "%s/std", CLOUD_CACHE_DIR);
+            const char *roots[3] = { CLOUD_CACHE_DIR, root_std, NULL };
+
+            int cloud_header_printed = 0;
+
+            for (int r = 0; roots[r]; r++) {
+                snprintf(find_cmd, sizeof(find_cmd),
+                    "find \"%s\" -maxdepth 1 -mindepth 1 -type d 2>/dev/null", roots[r]);
+                FILE *cp = popen(find_cmd, "r");
+                if (!cp) continue;
+
+                char line[512];
+                while (fgets(line, sizeof(line), cp)) {
+                    int len = strlen(line);
+                    while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) line[--len] = '\0';
+
+                    // skip the cache dir itself appearing as a result
+                    if (strcmp(line, CLOUD_CACHE_DIR) == 0) continue;
+
+                    char meta[600];
+                    snprintf(meta, sizeof(meta), "%s/package.barite", line);
+
+                    char name[64]    = "";
+                    char version[64] = "?";
+                    char desc[256]   = "";
+                    read_field(meta, "name",    name,    sizeof(name));
+                    read_field(meta, "version", version, sizeof(version));
+                    read_description(meta, desc, sizeof(desc));
+
+                    if (name[0] == '\0') {
+                        char *slash = strrchr(line, '/');
+                        strncpy(name, slash ? slash + 1 : line, sizeof(name) - 1);
+                        name[sizeof(name) - 1] = '\0';
+                    }
+
+                    char *dirslash = strrchr(line, '/');
+                    const char *dirname = dirslash ? dirslash + 1 : line;
+
+                    if (icontains(name,    term_lower) ||
+                        icontains(desc,    term_lower) ||
+                        icontains(dirname, term_lower))
+                    {
+                        if (!cloud_header_printed) {
+                            if (found > 0) printf("\n");
+                            printf("Cloud packages matching '%s':\n", term);
+                            cloud_header_printed = 1;
+                        }
+                        printf("  [cloud]     %-12s v%-8s %s\n", name, version, desc);
+                        found++;
+                    }
+                }
+                pclose(cp);
+            }
+
+            snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", CLOUD_CACHE_DIR);
+            (void)system(cmd);
+        }
+    }
+
+    if (!found) {
+        printf("No packages found matching '%s'", term);
+        if (!include_cloud) printf(" (tip: use --cloud to also search remote packages)");
+        printf("\n");
     }
 }
 
@@ -272,13 +441,16 @@ static void usage(void) {
         "barite — CCPL package manager\n"
         "\n"
         "Usage:\n"
-        "  barite-cli install <pkg>         install a cloud package (default source)\n"
-        "  barite-cli install cloud <pkg>   install a cloud package\n"
-        "  barite-cli install local <pkg>   install a local package\n"
-        "  barite-cli remove <pkg>          remove an installed package\n"
-        "  barite-cli list                  list installed packages\n"
-        "  barite-cli info local <pkg>      show local package info\n"
-        "  barite-cli info installed <pkg>  show info for installed package\n"
+        "  barite-cli install <pkg>              install a cloud package (default source)\n"
+        "  barite-cli install cloud <pkg>        install a cloud package\n"
+        "  barite-cli install local <pkg>        install a local package\n"
+        "  barite-cli remove <pkg>               remove an installed package\n"
+        "  barite-cli list                       list installed packages\n"
+        "  barite-cli search <term>              search installed packages\n"
+        "  barite-cli search --cloud <term>      search installed + cloud packages\n"
+        "  barite-cli info local <pkg>           show local package info\n"
+        "  barite-cli info installed <pkg>       show info for installed package\n"
+        "  barrite-cli --version, -v             show version information\n"
         "\n"
         "Examples:\n"
         "  barite-cli install math\n"
@@ -288,18 +460,26 @@ static void usage(void) {
         "  barite-cli install local shell\n"
         "  barite-cli list\n"
         "  barite-cli remove math\n"
+        "  barite-cli search math\n"
+        "  barite-cli search --cloud io\n"
         "\n"
         "Environment:\n"
         "  BARITE_STD_DIR   override the directory where packages are installed\n"
     );
 }
 
-// Main
+// Main function, aka the command line interface (cli)
 
 int main(int argc, char **argv) {
 
     if (argc < 2) {
         usage();
+        return 0;
+    }
+
+    // Version commands, thanks for the idea!
+    if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
+        printf("Barite version %s\n", BARITE_VERSION);
         return 0;
     }
 
@@ -345,6 +525,26 @@ int main(int argc, char **argv) {
     // list
     if (strcmp(cmd, "list") == 0) {
         barite_list();
+        return 0;
+    }
+
+    // search [--cloud] <term>
+    if (strcmp(cmd, "search") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "usage: barite search [--cloud] <term>\n");
+            return 1;
+        }
+        int cloud = 0;
+        const char *term = argv[2];
+        if (strcmp(argv[2], "--cloud") == 0) {
+            cloud = 1;
+            if (argc < 4) {
+                fprintf(stderr, "usage: barite search --cloud <term>\n");
+                return 1;
+            }
+            term = argv[3];
+        }
+        barite_search(term, cloud);
         return 0;
     }
 

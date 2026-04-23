@@ -10,6 +10,7 @@
 #define MAX_SRC    16384
 #define MAX_TOKENS 8192
 #define REPL_SRC_MAX 262144
+#define CCPL_VERSION "0.2"
 
 static volatile sig_atomic_t g_repl_interrupted = 0;
 static const char *g_repl_session_file = NULL;
@@ -43,6 +44,7 @@ static void usage(void) {
         "  --repl, -r      start interactive REPL mode\n"
         "  --keep-c, -k    keep generated C file (<output>.c)\n"
         "  --quiet         suppress success output\n"
+        "  --version, -v   show version information\n"
     );
 }
 
@@ -258,6 +260,7 @@ int main(int argc, char **argv) {
 
     // The arguments and cli flags
     // the strcmp thing is the shorted version of the thing before
+    // We also have --version to dispay the version, its the only exception to this rule
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--auto") == 0 || strcmp(argv[i], "-a") == 0) {
             auto_install = 1;
@@ -274,6 +277,12 @@ int main(int argc, char **argv) {
                 return 1;
             }
             output_name = argv[++i];
+        
+        // Version command, Thanks for the idea
+        } else if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+            printf("CCPL version %s\n", CCPL_VERSION);
+            return 0;    
+
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "error: unknown option '%s'\n", argv[i]);
             usage();

@@ -1,6 +1,7 @@
 # CCPL — C Compiled Programming Language
 
-CCPL is a high-level scripting language that compiles down to C. It's designed to feel as simple as Bash while giving you the raw power of C under the hood. Write clean, readable code — CCPL transpiles it to C and compiles it to a native binary automatically.
+CCPL is a high-level scripting language that compiles down to C. It's designed to feel as simple as Bash while giving you the raw power of C under the hood. Write clean, readable code. CCPL transpiles it to C and compiles it to a native binary automatically. This ensures that programmers from all various expertises can learn CCPL with ease!
+CCPL also has Barite, a easy to use package manager with support for local and cloud packages. Custom local packages is already a thing, for cloud you currently have to make a pull request or modify barite itself.
 
 > **Platform:** Linux (cross-compilation planned)
 
@@ -82,6 +83,7 @@ ccpl program.ccpl                  # compile to ./out
 ccpl program.ccpl -o myapp         # compile to ./myapp
 ccpl program.ccpl -a               # auto-install missing packages
 ccpl program.ccpl -o myapp -k      # keep the generated C file
+ccpl --version					   # prints the current version
 ```
 
 ---
@@ -89,6 +91,7 @@ ccpl program.ccpl -o myapp -k      # keep the generated C file
 ## REPL
 
 CCPL includes an interactive REPL that builds up your program line by line and executes it incrementally.
+This ensures smooth python like experiences so that it is easy to debug and test with this language.
 
 ```bash
 ccpl --repl
@@ -147,6 +150,8 @@ barite-cli list                    # list installed packages
 barite-cli remove math             # remove a package
 barite-cli info installed math     # show info for an installed package
 barite-cli info local math         # show info for a local/bundled package
+barite-cli search <term>		   # search for a package locally based on keywords
+barite-cli search --cloud <term>   # search for a package in the cloud based on keywords
 ```
 
 ### Auto-install via Compiler
