@@ -591,7 +591,7 @@ $ ./hello<br>
       <div class="pkg-list" id="pkgList">
         <div class="pkg-loading">
           <div class="spinner"></div>
-          fetching packages...
+          fetching packages... 
         </div>
       </div>
       <div class="pkg-detail" id="pkgDetail">
@@ -621,6 +621,8 @@ $ ./hello<br>
   let allPackages = [];
   let selectedPkg = null;
 
+
+  // Complex package fetching logic
   async function fetchPackages() {
     try {
       // Step 1: list all top-level dirs
@@ -728,7 +730,7 @@ $ ./hello<br>
     document.getElementById('pkgCount').textContent = visible + ' packages';
   }
 
-// Copy util
+// Copy utility
   function copyCode(btn, text) {
     navigator.clipboard.writeText(text).then(() => {
       const orig = btn.textContent;

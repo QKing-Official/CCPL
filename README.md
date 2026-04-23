@@ -4,6 +4,7 @@ CCPL is a high-level scripting language that compiles down to C. It's designed t
 CCPL also has Barite, a easy to use package manager with support for local and cloud packages. Custom local packages is already a thing, for cloud you currently have to make a pull request or modify barite itself.
 
 > **Platform:** Linux (cross-compilation planned)
+It compiles to C --> Binary. There are options to preserve and observe the generated C file.
 
 ---
 
@@ -37,6 +38,7 @@ The installer uses a dialog-based UI to let you choose components:
 - **barite** — the package manager
 - **offline** — local package cache (installs packages for use without internet)
 
+If you want to actually use or test the language I recommend having ccpl and barite installed. THose are needed for the programs.
 Binaries are installed to `/opt/ccpl/` and symlinked into `/usr/local/bin/`, so `ccpl` and `barite-cli` are available everywhere on your system after install.
 
 ---
