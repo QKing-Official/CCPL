@@ -57,4 +57,6 @@ fi
 dialog --title "Done" \
 --msgbox "CCPL installation complete!\n\nRun:\nccpl\nbarite-cli" 10 40
 
+# Proper cleanup
 clear
+tput reset
