@@ -1,0 +1,4 @@
+name: math
+version: 2.0
+description: arithmetic, variables, for/while loops
+provides: variable_assignment, arithmetic, for, while

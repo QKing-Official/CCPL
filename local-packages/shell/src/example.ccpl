@@ -1,0 +1,9 @@
+# shell package: run system commands
+# fire-and-forget:
+#   $(echo hello)
+# capture output:
+#   result = $(ls)
+#   print result
+packages = { shell, io }
+out = $(echo "shell works")
+print out

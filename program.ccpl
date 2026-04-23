@@ -1,0 +1,48 @@
+# Package imports
+packages = {
+    math,
+    io,
+    shell
+}
+
+# types test
+x = 5
+y = 3.14
+name = "ccpl"
+print x
+print y
+print name
+
+# arithmetic test
+z = x + 2
+print z
+
+# if/else tests
+if x > 3 {
+    print x
+} else {
+    print y
+}
+
+# while loop tests
+i = 0
+while i < 3 {
+    print i
+    i = i + 1
+}
+
+# for loop test
+for j = 0; j < 4; j++ {
+    print j
+}
+
+# functions test to ensure functions work
+def square(n) {
+    return n * n
+}
+result = square(6)
+print result
+
+# shell
+cwd = $(pwd)
+print cwd
