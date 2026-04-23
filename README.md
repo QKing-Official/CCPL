@@ -308,3 +308,7 @@ ccpl program.ccpl
 
 Licensed under MIT.
 See [LICENSE](LICENSE) for details.
+
+I hope you all like this project! I will continue coding on more projects! '
+For now I will take a break thought.... I don't want a burnout.
+See you all once again in the near feature!
