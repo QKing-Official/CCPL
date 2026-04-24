@@ -6,6 +6,8 @@ CCPL also has Barite, a easy to use package manager with support for local and c
 > **Platform:** Linux (cross-compilation planned)
 It compiles to C --> Binary. There are options to preserve and observe the generated C file.
 
+Check the website for more: https://qking.me/CCPL/
+
 ---
 
 ## Table of Contents
